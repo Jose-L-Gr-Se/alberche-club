@@ -20,56 +20,66 @@ export default async function StaffSesionesPage() {
 
   if (error) {
     return (
-      <div className="p-6">
-        <h1 className="text-xl font-semibold">Sesiones</h1>
-        <p className="mt-4 text-red-600">
+      <main className="min-h-screen bg-gray-50 px-6 py-10">
+        <h1 className="text-xl font-semibold text-gray-900">Sesiones</h1>
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           Error cargando sesiones: {error.message}
-        </p>
-      </div>
+        </div>
+      </main>
     )
   }
 
   const sesiones = (data ?? []) as Sesion[]
 
+  const estadoBadge: Record<string, string> = {
+    programada: 'bg-blue-50 text-blue-700 ring-blue-200',
+    completada: 'bg-green-50 text-green-700 ring-green-200',
+    cancelada: 'bg-red-50 text-red-600 ring-red-200',
+  }
+
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Sesiones</h1>
-        <p className="text-sm text-gray-600">
-          Vista inicial de sesiones de entrenamiento
+    <main className="min-h-screen bg-gray-50 px-6 py-10">
+      <div className="mb-8">
+        <h1 className="text-xl font-semibold text-gray-900">Sesiones</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Sesiones de entrenamiento programadas
         </p>
       </div>
 
       {sesiones.length === 0 ? (
-        <div className="rounded border p-4">
-          <p>No hay sesiones disponibles.</p>
+        <div className="rounded-lg border border-dashed border-gray-300 bg-white px-6 py-10 text-center">
+          <p className="text-sm text-gray-500">No hay sesiones disponibles.</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <table className="min-w-full border-collapse">
-            <thead className="bg-gray-50">
-              <tr className="text-left text-sm">
-                <th className="px-4 py-3">Fecha</th>
-                <th className="px-4 py-3">Entreno</th>
-                <th className="px-4 py-3">Hora</th>
-                <th className="px-4 py-3">Sede</th>
-                <th className="px-4 py-3">Estado</th>
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <table className="min-w-full">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Fecha</th>
+                <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Entreno</th>
+                <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Hora</th>
+                <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Sede</th>
+                <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Estado</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100">
               {sesiones.map((sesion) => (
-                <tr key={sesion.id} className="border-t text-sm">
-                  <td className="px-4 py-3">{sesion.fecha}</td>
-                  <td className="px-4 py-3">{sesion.tipo_entreno}</td>
-                  <td className="px-4 py-3">{sesion.hora_inicio}</td>
-                  <td className="px-4 py-3">{sesion.sede ?? '-'}</td>
-                  <td className="px-4 py-3">{sesion.estado}</td>
+                <tr key={sesion.id} className="transition-colors hover:bg-gray-50">
+                  <td className="px-5 py-3.5 text-sm font-medium text-gray-900">{sesion.fecha}</td>
+                  <td className="px-5 py-3.5 text-sm text-gray-700">{sesion.tipo_entreno}</td>
+                  <td className="px-5 py-3.5 text-sm tabular-nums text-gray-700">{sesion.hora_inicio}</td>
+                  <td className="px-5 py-3.5 text-sm text-gray-500">{sesion.sede ?? <span className="text-gray-300">—</span>}</td>
+                  <td className="px-5 py-3.5">
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${estadoBadge[sesion.estado] ?? 'bg-gray-50 text-gray-600 ring-gray-200'}`}>
+                      {sesion.estado}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-    </div>
+    </main>
   )
 }
