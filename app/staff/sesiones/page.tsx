@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 type Sesion = {
@@ -65,14 +66,32 @@ export default async function StaffSesionesPage() {
             <tbody className="divide-y divide-gray-100">
               {sesiones.map((sesion) => (
                 <tr key={sesion.id} className="transition-colors hover:bg-gray-50">
-                  <td className="px-5 py-3.5 text-sm font-medium text-gray-900">{sesion.fecha}</td>
-                  <td className="px-5 py-3.5 text-sm text-gray-700">{sesion.tipo_entreno}</td>
-                  <td className="px-5 py-3.5 text-sm tabular-nums text-gray-700">{sesion.hora_inicio}</td>
-                  <td className="px-5 py-3.5 text-sm text-gray-500">{sesion.sede ?? <span className="text-gray-300">—</span>}</td>
+                  <td className="px-5 py-3.5 text-sm font-medium text-gray-900">
+                    <Link href={`/staff/sesiones/${sesion.id}`} className="block">
+                      {sesion.fecha}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3.5 text-sm text-gray-700">
+                    <Link href={`/staff/sesiones/${sesion.id}`} className="block">
+                      {sesion.tipo_entreno}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3.5 text-sm tabular-nums text-gray-700">
+                    <Link href={`/staff/sesiones/${sesion.id}`} className="block">
+                      {sesion.hora_inicio}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3.5 text-sm text-gray-500">
+                    <Link href={`/staff/sesiones/${sesion.id}`} className="block">
+                      {sesion.sede ?? <span className="text-gray-300">—</span>}
+                    </Link>
+                  </td>
                   <td className="px-5 py-3.5">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${estadoBadge[sesion.estado] ?? 'bg-gray-50 text-gray-600 ring-gray-200'}`}>
-                      {sesion.estado}
-                    </span>
+                    <Link href={`/staff/sesiones/${sesion.id}`} className="block">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${estadoBadge[sesion.estado] ?? 'bg-gray-50 text-gray-600 ring-gray-200'}`}>
+                        {sesion.estado}
+                      </span>
+                    </Link>
                   </td>
                 </tr>
               ))}
