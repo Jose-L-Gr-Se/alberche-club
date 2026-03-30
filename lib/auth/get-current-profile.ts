@@ -4,7 +4,7 @@ export type CurrentProfile = {
   userId: string
   profileId: string
   email: string | null
-  rol: string | null
+  role: 'palista' | 'staff' | null
   nombre: string | null
 }
 
@@ -16,15 +16,19 @@ export async function getCurrentProfile(): Promise<CurrentProfile | null> {
     error: userError,
   } = await supabase.auth.getUser()
 
+  console.log('AUTH USER', { userId: user?.id, email: user?.email, userError })
+
   if (userError || !user) {
     return null
   }
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, email, rol, nombre')
+    .select('id, email, role, nombre')
     .eq('id', user.id)
     .maybeSingle()
+
+  console.log('PROFILE QUERY', { profile, profileError })
 
   if (profileError || !profile) {
     return null
@@ -34,7 +38,7 @@ export async function getCurrentProfile(): Promise<CurrentProfile | null> {
     userId: user.id,
     profileId: profile.id,
     email: profile.email ?? user.email ?? null,
-    rol: profile.rol ?? null,
+    role: profile.role ?? null,
     nombre: profile.nombre ?? null,
   }
 }
