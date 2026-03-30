@@ -6,16 +6,16 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 export async function crearBarcoDePrueba(sesionId: string) {
   const supabase = createServerSupabaseClient()
 
-  const { data: existentes, error: existentesError } = await supabase
+  const { count, error: existentesError } = await supabase
     .from('barcos')
-    .select('id', { count: 'exact' })
+    .select('*', { count: 'exact', head: true })
     .eq('sesion_id', sesionId)
 
   if (existentesError) {
     throw new Error(`No se pudo consultar los barcos existentes: ${existentesError.message}`)
   }
 
-  const orden = (existentes?.length ?? 0) + 1
+  const orden = (count ?? 0) + 1
 
   const { error } = await supabase.from('barcos').insert({
     sesion_id: sesionId,
