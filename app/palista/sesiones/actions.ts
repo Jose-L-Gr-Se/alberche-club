@@ -87,18 +87,64 @@ export async function cancelarInscripcionEnSesion(sesionId: string) {
     return { ok: false, reason: 'closed' }
   }
 
-  const { error } = await supabase
+  const { data: miInscripcion, error: miInscripcionError } = await supabase
+    .from('inscripciones')
+    .select('id, estado')
+    .eq('sesion_id', sesionId)
+    .eq('profile_id', TEST_PROFILE_ID)
+    .in('estado', ['inscrito', 'lista_espera'])
+    .maybeSingle()
+
+  if (miInscripcionError) {
+    throw new Error(`No se pudo cargar la inscripción actual: ${miInscripcionError.message}`)
+  }
+
+  if (!miInscripcion) {
+    return { ok: false, reason: 'not_found' }
+  }
+
+  const estadoAnterior = miInscripcion.estado
+
+  const { error: cancelError } = await supabase
     .from('inscripciones')
     .update({
       estado: 'cancelado',
       cancelled_at: new Date().toISOString(),
     })
-    .eq('sesion_id', sesionId)
-    .eq('profile_id', TEST_PROFILE_ID)
-    .in('estado', ['inscrito', 'lista_espera'])
+    .eq('id', miInscripcion.id)
 
-  if (error) {
-    throw new Error(error.message)
+  if (cancelError) {
+    throw new Error(cancelError.message)
+  }
+
+  // Solo promocionar si quien canceló estaba ocupando plaza real
+  if (estadoAnterior === 'inscrito') {
+    const { data: siguienteEnEspera, error: esperaError } = await supabase
+      .from('inscripciones')
+      .select('id')
+      .eq('sesion_id', sesionId)
+      .eq('estado', 'lista_espera')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (esperaError) {
+      throw new Error(`No se pudo revisar la lista de espera: ${esperaError.message}`)
+    }
+
+    if (siguienteEnEspera) {
+      const { error: promoteError } = await supabase
+        .from('inscripciones')
+        .update({
+          estado: 'inscrito',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', siguienteEnEspera.id)
+
+      if (promoteError) {
+        throw new Error(`No se pudo promocionar desde lista de espera: ${promoteError.message}`)
+      }
+    }
   }
 
   revalidatePath('/palista/sesiones')

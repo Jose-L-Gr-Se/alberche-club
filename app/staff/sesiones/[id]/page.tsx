@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createTestInscripcion } from './actions'
 
@@ -114,6 +115,15 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
           </div>
         </div>
       </section>
+
+      <div className="mb-8">
+        <Link
+          href={`/staff/sesiones/${sesion.id}/barcos`}
+          className="inline-flex rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+        >
+          Ir a planificación de barcos
+        </Link>
+      </div>
 
       <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
