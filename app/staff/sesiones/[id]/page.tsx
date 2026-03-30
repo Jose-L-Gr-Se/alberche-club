@@ -8,7 +8,7 @@ type PageProps = {
 
 export default async function StaffSesionDetallePage({ params }: PageProps) {
   const { id } = await params
-  const supabase = createServerSupabaseClient()
+  const supabase = await createServerSupabaseClient()
 
   const { data: sesion, error: sesionError } = await supabase
     .from('sesiones')

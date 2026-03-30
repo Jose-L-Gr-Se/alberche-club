@@ -11,7 +11,7 @@ type Sesion = {
 }
 
 export default async function StaffSesionesPage() {
-  const supabase = createServerSupabaseClient()
+  const supabase = await createServerSupabaseClient()
 
   const { data, error } = await supabase
     .from('sesiones')

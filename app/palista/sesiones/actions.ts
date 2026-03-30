@@ -2,8 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-
-const TEST_PROFILE_ID = 'ac6faf2a-1e6c-4ba7-8f38-f355ab750f98'
+import { getCurrentProfile } from '@/lib/auth/get-current-profile'
 
 function sesionPermiteCambios(sesion: { estado: string; cierre_inscripcion_at: string | null }) {
   if (sesion.estado !== 'abierta_inscripcion') return false
@@ -16,7 +15,14 @@ function sesionPermiteCambios(sesion: { estado: string; cierre_inscripcion_at: s
 }
 
 export async function inscribirmeEnSesion(sesionId: string) {
-  const supabase = createServerSupabaseClient()
+  const currentProfile = await getCurrentProfile()
+
+  if (!currentProfile) {
+    throw new Error('No hay usuario autenticado')
+  }
+
+  const profileId = currentProfile.profileId
+  const supabase = await createServerSupabaseClient()
 
   const { data: sesion, error: sesionError } = await supabase
     .from('sesiones')
@@ -50,7 +56,7 @@ export async function inscribirmeEnSesion(sesionId: string) {
 
   const { error } = await supabase.from('inscripciones').insert({
     sesion_id: sesionId,
-    profile_id: TEST_PROFILE_ID,
+    profile_id: profileId,
     estado: nuevoEstado,
     lado_solicitado: 'i',
     prep_rec: 'prep',
@@ -71,7 +77,14 @@ export async function inscribirmeEnSesion(sesionId: string) {
 }
 
 export async function cancelarInscripcionEnSesion(sesionId: string) {
-  const supabase = createServerSupabaseClient()
+  const currentProfile = await getCurrentProfile()
+
+  if (!currentProfile) {
+    throw new Error('No hay usuario autenticado')
+  }
+
+  const profileId = currentProfile.profileId
+  const supabase = await createServerSupabaseClient()
 
   const { data: sesion, error: sesionError } = await supabase
     .from('sesiones')
@@ -91,7 +104,7 @@ export async function cancelarInscripcionEnSesion(sesionId: string) {
     .from('inscripciones')
     .select('id, estado')
     .eq('sesion_id', sesionId)
-    .eq('profile_id', TEST_PROFILE_ID)
+    .eq('profile_id', profileId)
     .in('estado', ['inscrito', 'lista_espera'])
     .maybeSingle()
 

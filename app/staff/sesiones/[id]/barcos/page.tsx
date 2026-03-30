@@ -1,6 +1,12 @@
 import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { crearBarcoDePrueba } from './actions'
+import {
+  asignarInscripcionABarco,
+  crearBarcoDePrueba,
+  desasignarInscripcionDeBarco,
+  publicarPlanificacionSesion,
+} from './actions'
+import { PositionEditor } from '@/components/staff/PositionEditor'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -8,7 +14,7 @@ type PageProps = {
 
 export default async function StaffSesionBarcosPage({ params }: PageProps) {
   const { id } = await params
-  const supabase = createServerSupabaseClient()
+  const supabase = await createServerSupabaseClient()
 
   const { data: sesion, error: sesionError } = await supabase
     .from('sesiones')
@@ -54,6 +60,41 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
     .eq('sesion_id', id)
     .order('orden_visual', { ascending: true })
 
+  const hayBarcos = !!barcos && barcos.length > 0
+  const todosPublicados = hayBarcos && barcos.every((barco) => barco.estado === 'publicado')
+
+  const { data: asignaciones, error: asignacionesError } = await supabase
+    .from('asignaciones_barco')
+    .select('id, barco_id, inscripcion_id, banco, lado')
+
+  const asignacionesList = asignaciones ?? []
+
+  const asignacionPorInscripcion = new Map(
+    asignacionesList.map((item) => [item.inscripcion_id, item])
+  )
+
+  const inscritosPendientes = inscritosElegibles.filter(
+    (item: any) => !asignacionPorInscripcion.has(item.id)
+  )
+
+  const inscritosMap = new Map(
+    inscritosElegibles.map((item: any) => [item.id, item])
+  )
+
+  const asignadosPorBarco = new Map<string, any[]>()
+
+  for (const asignacion of asignacionesList) {
+    const inscripcion = inscritosMap.get(asignacion.inscripcion_id)
+    if (!inscripcion) continue
+
+    const actuales = asignadosPorBarco.get(asignacion.barco_id) ?? []
+    actuales.push({
+      ...inscripcion,
+      asignacion,
+    })
+    asignadosPorBarco.set(asignacion.barco_id, actuales)
+  }
+
   if (sesionError) {
     return (
       <main className="min-h-screen bg-gray-50 px-6 py-10">
@@ -92,21 +133,50 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
           <p className="mt-2 text-sm text-gray-600">
             Base de preparación de barcos para esta sesión
           </p>
+
+          <div className="mt-3">
+            {todosPublicados ? (
+              <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
+                Planificación publicada
+              </span>
+            ) : (
+              <span className="rounded-full border border-yellow-200 bg-yellow-50 px-3 py-1 text-xs font-medium text-yellow-700">
+                Borrador interno
+              </span>
+            )}
+          </div>
         </div>
 
-        <form
-          action={async () => {
-            'use server'
-            await crearBarcoDePrueba(id)
-          }}
-        >
-          <button
-            type="submit"
-            className="rounded-lg bg-black px-4 py-3 text-sm font-medium text-white hover:bg-gray-800"
+        <div className="flex flex-wrap gap-3">
+          <form
+            action={async () => {
+              'use server'
+              await crearBarcoDePrueba(id)
+            }}
           >
-            Crear barco de prueba
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="rounded-lg bg-black px-4 py-3 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              Crear barco de prueba
+            </button>
+          </form>
+
+          <form
+            action={async () => {
+              'use server'
+              await publicarPlanificacionSesion(id)
+            }}
+          >
+            <button
+              type="submit"
+              disabled={!hayBarcos || todosPublicados}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {todosPublicados ? 'Planificación publicada' : 'Publicar planificación'}
+            </button>
+          </form>
+        </div>
       </div>
 
       <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -143,14 +213,18 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
             </p>
           </div>
 
-          {inscripcionesError || profilesError ? (
+          {inscripcionesError || profilesError || asignacionesError ? (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               Error cargando inscritos:{' '}
-              {inscripcionesError?.message || profilesError?.message}
+              {inscripcionesError?.message || profilesError?.message || asignacionesError?.message}
             </div>
-          ) : inscritosElegibles.length === 0 ? (
+          ) : inscritosPendientes.length === 0 ? (
             <div className="rounded-lg border border-dashed border-gray-300 px-6 py-8 text-center text-sm text-gray-500">
-              No hay inscritos confirmados para esta sesión.
+              No hay inscritos pendientes de asignar.
+            </div>
+          ) : !barcos || barcos.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-gray-300 px-6 py-8 text-center text-sm text-gray-500">
+              Crea al menos un barco para poder asignar personas.
             </div>
           ) : (
             <div className="overflow-hidden rounded-lg border border-gray-200">
@@ -162,10 +236,11 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Lado</th>
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Prep/Rec</th>
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Hueco</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {inscritosElegibles.map((item: any) => (
+                  {inscritosPendientes.map((item: any) => (
                     <tr key={item.id}>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {item.profile
@@ -183,6 +258,26 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
                         {item.tipo_hueco ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        <div className="flex flex-wrap gap-2">
+                          {barcos.map((barco) => (
+                            <form
+                              key={barco.id}
+                              action={async () => {
+                                'use server'
+                                await asignarInscripcionABarco(id, item.id, barco.id)
+                              }}
+                            >
+                              <button
+                                type="submit"
+                                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                              >
+                                Asignar a {barco.nombre_visible ?? 'barco'}
+                              </button>
+                            </form>
+                          ))}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -210,27 +305,221 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
             </div>
           ) : (
             <div className="grid gap-3">
-              {barcos.map((barco) => (
-                <div
-                  key={barco.id}
-                  className="rounded-lg border border-gray-200 bg-gray-50 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {barco.nombre_visible ?? 'Barco sin nombre'}
-                      </p>
-                      <p className="mt-1 text-sm text-gray-600">
-                        {barco.tipo_barco} · Turno {barco.turno ?? '—'}
-                      </p>
+              {barcos.map((barco) => {
+                const asignados = [...(asignadosPorBarco.get(barco.id) ?? [])].sort((a: any, b: any) => {
+                  const bancoA = a.asignacion?.banco ?? Number.MAX_SAFE_INTEGER
+                  const bancoB = b.asignacion?.banco ?? Number.MAX_SAFE_INTEGER
+
+                  if (bancoA !== bancoB) return bancoA - bancoB
+
+                  const ladoOrden = (lado?: string | null) => {
+                    if (lado === 'izquierda') return 0
+                    if (lado === 'derecha') return 1
+                    return 2
+                  }
+
+                  const ladoA = ladoOrden(a.asignacion?.lado)
+                  const ladoB = ladoOrden(b.asignacion?.lado)
+
+                  if (ladoA !== ladoB) return ladoA - ladoB
+
+                  const nombreA = a.profile
+                    ? `${a.profile.nombre} ${a.profile.apellidos}`
+                    : ''
+                  const nombreB = b.profile
+                    ? `${b.profile.nombre} ${b.profile.apellidos}`
+                    : ''
+
+                  return nombreA.localeCompare(nombreB)
+                })
+
+                const maxBancoAsignado =
+                  asignados.length > 0
+                    ? Math.max(
+                        ...asignados.map((item: any) => item.asignacion?.banco ?? 0)
+                      )
+                    : 0
+
+                const totalBancos = Math.max(5, maxBancoAsignado)
+
+                const filas = Array.from({ length: totalBancos }, (_, index) => {
+                  const banco = index + 1
+
+                  const izquierda =
+                    asignados.find(
+                      (item: any) =>
+                        item.asignacion?.banco === banco &&
+                        item.asignacion?.lado === 'izquierda'
+                    ) ?? null
+
+                  const derecha =
+                    asignados.find(
+                      (item: any) =>
+                        item.asignacion?.banco === banco &&
+                        item.asignacion?.lado === 'derecha'
+                    ) ?? null
+
+                  return {
+                    banco,
+                    izquierda,
+                    derecha,
+                  }
+                })
+
+                return (
+                  <div
+                    key={barco.id}
+                    className="rounded-lg border border-gray-200 bg-gray-50 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {barco.nombre_visible ?? 'Barco sin nombre'}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-600">
+                          {barco.tipo_barco} · Turno {barco.turno ?? '—'}
+                        </p>
+                      </div>
+
+                      <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600">
+                        {barco.estado}
+                      </span>
                     </div>
 
-                    <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600">
-                      {barco.estado}
-                    </span>
+                    <div className="mt-4">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Distribución del barco
+                      </p>
+
+                      <div className="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                        <div className="grid grid-cols-[80px_1fr_1fr] border-b border-gray-200 bg-gray-50">
+                          <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+                            Banco
+                          </div>
+                          <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+                            Izquierda
+                          </div>
+                          <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+                            Derecha
+                          </div>
+                        </div>
+
+                        {filas.map((fila) => (
+                          <div
+                            key={fila.banco}
+                            className="grid grid-cols-[80px_1fr_1fr] border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="px-3 py-3 text-sm font-medium text-gray-700">
+                              {fila.banco}
+                            </div>
+
+                            <div className="border-l border-gray-100 px-3 py-3">
+                              {fila.izquierda ? (
+                                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800">
+                                  <div className="font-medium">
+                                    {fila.izquierda.profile
+                                      ? `${fila.izquierda.profile.nombre} ${fila.izquierda.profile.apellidos}`
+                                      : 'Palista'}
+                                  </div>
+                                  <div className="mt-1 text-xs text-gray-500">
+                                    {fila.izquierda.profile?.peso_kg ?? '—'} kg
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="rounded-md border border-dashed border-gray-200 px-3 py-2 text-sm text-gray-400">
+                                  Vacío
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="border-l border-gray-100 px-3 py-3">
+                              {fila.derecha ? (
+                                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800">
+                                  <div className="font-medium">
+                                    {fila.derecha.profile
+                                      ? `${fila.derecha.profile.nombre} ${fila.derecha.profile.apellidos}`
+                                      : 'Palista'}
+                                  </div>
+                                  <div className="mt-1 text-xs text-gray-500">
+                                    {fila.derecha.profile?.peso_kg ?? '—'} kg
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="rounded-md border border-dashed border-gray-200 px-3 py-2 text-sm text-gray-400">
+                                  Vacío
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Asignados
+                      </p>
+
+                      {asignados.length === 0 ? (
+                        <p className="mt-2 text-sm text-gray-500">Todavía no hay personas asignadas.</p>
+                      ) : (
+                        <div className="mt-2 grid gap-2">
+                          {asignados.map((item: any) => (
+                            <div
+                              key={item.id}
+                              className="rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-700"
+                            >
+                              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                <div>
+                                  <p className="font-medium text-gray-900">
+                                    {item.profile
+                                      ? `${item.profile.nombre} ${item.profile.apellidos}`
+                                      : 'Palista sin perfil'}
+                                  </p>
+                                  <p className="mt-1 text-sm text-gray-600">
+                                    {item.profile?.peso_kg ?? '—'} kg · preferencia lado: {item.lado_solicitado ?? '—'}
+                                  </p>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
+                                      {item.asignacion?.banco ? `Banco ${item.asignacion.banco}` : 'Sin banco'}
+                                    </span>
+                                    <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
+                                      {item.asignacion?.lado ?? 'Sin lado'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                  <PositionEditor
+                                    sesionId={id}
+                                    inscripcionId={item.id}
+                                    defaultBanco={item.asignacion?.banco ?? null}
+                                    defaultLado={item.asignacion?.lado ?? null}
+                                  />
+
+                                  <form
+                                    action={async () => {
+                                      'use server'
+                                      await desasignarInscripcionDeBarco(id, item.id)
+                                    }}
+                                  >
+                                    <button
+                                      type="submit"
+                                      className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                                    >
+                                      Quitar
+                                    </button>
+                                  </form>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </section>

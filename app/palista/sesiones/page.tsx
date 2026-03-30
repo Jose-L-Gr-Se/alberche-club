@@ -1,10 +1,10 @@
+import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { getCurrentProfile } from '@/lib/auth/get-current-profile'
 import {
   inscribirmeEnSesion,
   cancelarInscripcionEnSesion,
 } from './actions'
-
-const TEST_PROFILE_ID = 'ac6faf2a-1e6c-4ba7-8f38-f355ab750f98'
 
 type Sesion = {
   id: string
@@ -38,7 +38,21 @@ type Inscripcion = {
 }
 
 export default async function PalistaSesionesPage() {
-  const supabase = createServerSupabaseClient()
+  const currentProfile = await getCurrentProfile()
+
+  if (!currentProfile) {
+    return (
+      <main className="min-h-screen bg-gray-50 px-6 py-10">
+        <h1 className="text-2xl font-bold text-gray-900">Mis sesiones</h1>
+        <div className="mt-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+          Debes iniciar sesión para ver tus sesiones.
+        </div>
+      </main>
+    )
+  }
+
+  const profileId = currentProfile.profileId
+  const supabase = await createServerSupabaseClient()
 
   const { data: sesiones, error: sesionesError } = await supabase
     .from('sesiones')
@@ -49,7 +63,7 @@ export default async function PalistaSesionesPage() {
   const { data: inscripciones, error: inscripcionesError } = await supabase
     .from('inscripciones')
     .select('id, sesion_id, profile_id, estado')
-    .eq('profile_id', TEST_PROFILE_ID)
+    .eq('profile_id', profileId)
     .in('estado', ['inscrito', 'lista_espera'])
 
   if (sesionesError) {
@@ -83,11 +97,20 @@ export default async function PalistaSesionesPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Mis sesiones</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Vista inicial del palista para consultar e inscribirse a entrenamientos
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Mis sesiones</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Vista inicial del palista para consultar e inscribirse a entrenamientos
+          </p>
+        </div>
+
+        <Link
+          href="/palista/barcos"
+          className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Ver barcos publicados
+        </Link>
       </div>
 
       {sesionesList.length === 0 ? (
