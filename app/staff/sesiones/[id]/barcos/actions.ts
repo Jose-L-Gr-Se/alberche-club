@@ -2,8 +2,12 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth/require-role'
+import { getBoatLayoutConfig } from '@/lib/boats/layout'
 
 export async function crearBarcoDePrueba(sesionId: string) {
+  await requireRole(['staff'])
+
   const supabase = await createServerSupabaseClient()
 
   const { count, error: existentesError } = await supabase
@@ -38,6 +42,8 @@ export async function asignarInscripcionABarco(
   inscripcionId: string,
   barcoId: string
 ) {
+  await requireRole(['staff'])
+
   const supabase = await createServerSupabaseClient()
 
   const { data: inscripcion, error: inscripcionError } = await supabase
@@ -96,6 +102,8 @@ export async function desasignarInscripcionDeBarco(
   sesionId: string,
   inscripcionId: string
 ) {
+  await requireRole(['staff'])
+
   const supabase = await createServerSupabaseClient()
 
   const { data: inscripcion, error: inscripcionError } = await supabase
@@ -130,6 +138,8 @@ export async function actualizarPosicionAsignacion(
   banco: number | null,
   lado: 'izquierda' | 'derecha' | null
 ) {
+  await requireRole(['staff'])
+
   const supabase = await createServerSupabaseClient()
 
   if (banco !== null && (!Number.isInteger(banco) || banco < 1)) {
@@ -170,6 +180,30 @@ export async function actualizarPosicionAsignacion(
         ok: false as const,
         reason: 'unknown' as const,
         message: `No se pudo cargar la asignación actual: ${asignacionActualError.message}`,
+      }
+    }
+
+    const { data: barcoActual, error: barcoActualError } = await supabase
+      .from('barcos')
+      .select('id, tipo_barco')
+      .eq('id', asignacionActual.barco_id)
+      .single()
+
+    if (barcoActualError || !barcoActual) {
+      return {
+        ok: false as const,
+        reason: 'unknown' as const,
+        message: `No se pudo cargar el barco actual: ${barcoActualError?.message ?? 'sin datos'}`,
+      }
+    }
+
+    const layout = getBoatLayoutConfig(barcoActual.tipo_barco)
+
+    if (banco !== null && banco > layout.maxBancos) {
+      return {
+        ok: false as const,
+        reason: 'invalid_bank' as const,
+        message: `El banco máximo permitido para ${barcoActual.tipo_barco} es ${layout.maxBancos}`,
       }
     }
 
@@ -217,6 +251,8 @@ export async function actualizarPosicionAsignacion(
 }
 
 export async function publicarPlanificacionSesion(sesionId: string) {
+  await requireRole(['staff'])
+
   const supabase = await createServerSupabaseClient()
 
   const { data: barcos, error: barcosError } = await supabase

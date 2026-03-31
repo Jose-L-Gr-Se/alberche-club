@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { getCurrentProfile } from '@/lib/auth/get-current-profile'
+import { requireRole } from '@/lib/auth/require-role'
 
 function sesionPermiteCambios(sesion: { estado: string; cierre_inscripcion_at: string | null }) {
   if (sesion.estado !== 'abierta_inscripcion') return false
@@ -15,12 +15,7 @@ function sesionPermiteCambios(sesion: { estado: string; cierre_inscripcion_at: s
 }
 
 export async function inscribirmeEnSesion(sesionId: string) {
-  const currentProfile = await getCurrentProfile()
-
-  if (!currentProfile) {
-    throw new Error('No hay usuario autenticado')
-  }
-
+  const currentProfile = await requireRole(['palista', 'staff'])
   const profileId = currentProfile.profileId
   const supabase = await createServerSupabaseClient()
 
@@ -77,12 +72,7 @@ export async function inscribirmeEnSesion(sesionId: string) {
 }
 
 export async function cancelarInscripcionEnSesion(sesionId: string) {
-  const currentProfile = await getCurrentProfile()
-
-  if (!currentProfile) {
-    throw new Error('No hay usuario autenticado')
-  }
-
+  const currentProfile = await requireRole(['palista', 'staff'])
   const profileId = currentProfile.profileId
   const supabase = await createServerSupabaseClient()
 

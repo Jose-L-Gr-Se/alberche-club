@@ -1,12 +1,29 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createTestInscripcion } from './actions'
+import { requireRole } from '@/lib/auth/require-role'
+import { AccessDenied } from '@/components/auth/AccessDenied'
 
 type PageProps = {
   params: Promise<{ id: string }>
 }
 
 export default async function StaffSesionDetallePage({ params }: PageProps) {
+  try {
+    await requireRole(['staff'])
+  } catch (error) {
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
+      redirect('/login')
+    }
+    return (
+      <AccessDenied
+        title="Sin permisos"
+        message="Tu cuenta no tiene permisos para acceder a la zona staff."
+      />
+    )
+  }
+
   const { id } = await params
   const supabase = await createServerSupabaseClient()
 

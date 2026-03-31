@@ -1,5 +1,9 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth/require-role'
+import { AccessDenied } from '@/components/auth/AccessDenied'
+import { AppHeader } from '@/components/navigation/AppHeader'
 
 type Sesion = {
   id: string
@@ -11,6 +15,20 @@ type Sesion = {
 }
 
 export default async function StaffSesionesPage() {
+  try {
+    await requireRole(['staff'])
+  } catch (error) {
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
+      redirect('/login')
+    }
+    return (
+      <AccessDenied
+        title="Sin permisos"
+        message="Tu cuenta no tiene permisos para acceder a la zona staff."
+      />
+    )
+  }
+
   const supabase = await createServerSupabaseClient()
 
   const { data, error } = await supabase
@@ -40,12 +58,15 @@ export default async function StaffSesionesPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
-      <div className="mb-8">
-        <h1 className="text-xl font-semibold text-gray-900">Sesiones</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Sesiones de entrenamiento programadas
-        </p>
-      </div>
+      <AppHeader
+        title="Sesiones"
+        subtitle="Sesiones de entrenamiento programadas"
+        items={[
+          { href: '/staff/sesiones', label: 'Sesiones staff' },
+          { href: '/palista/sesiones', label: 'Vista palista' },
+          { href: '/palista/barcos', label: 'Barcos publicados' },
+        ]}
+      />
 
       {sesiones.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 bg-white px-6 py-10 text-center">

@@ -1,5 +1,9 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/auth/require-role'
+import { AccessDenied } from '@/components/auth/AccessDenied'
+import { getBoatLayoutConfig } from '@/lib/boats/layout'
 import {
   asignarInscripcionABarco,
   crearBarcoDePrueba,
@@ -13,6 +17,20 @@ type PageProps = {
 }
 
 export default async function StaffSesionBarcosPage({ params }: PageProps) {
+  try {
+    await requireRole(['staff'])
+  } catch (error) {
+    if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
+      redirect('/login')
+    }
+    return (
+      <AccessDenied
+        title="Sin permisos"
+        message="Tu cuenta no tiene permisos para acceder a la zona staff."
+      />
+    )
+  }
+
   const { id } = await params
   const supabase = await createServerSupabaseClient()
 
@@ -333,6 +351,8 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                   return nombreA.localeCompare(nombreB)
                 })
 
+                const layout = getBoatLayoutConfig(barco.tipo_barco)
+
                 const maxBancoAsignado =
                   asignados.length > 0
                     ? Math.max(
@@ -340,7 +360,7 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                       )
                     : 0
 
-                const totalBancos = Math.max(5, maxBancoAsignado)
+                const totalBancos = Math.max(layout.maxBancos, maxBancoAsignado)
 
                 const filas = Array.from({ length: totalBancos }, (_, index) => {
                   const banco = index + 1

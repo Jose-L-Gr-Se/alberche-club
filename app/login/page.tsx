@@ -5,28 +5,27 @@ import { supabase } from '@/lib/supabase/client'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setMessage(null)
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      options: {
-        emailRedirectTo: 'http://localhost:3000/auth/callback?next=/palista/sesiones',
-      },
+      password,
     })
 
     if (error) {
       setMessage(error.message)
-    } else {
-      setMessage('Te hemos enviado un enlace de acceso por email.')
+      setLoading(false)
+      return
     }
 
-    setLoading(false)
+    window.location.href = '/'
   }
 
   return (
@@ -34,7 +33,7 @@ export default function LoginPage() {
       <div className="mx-auto max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h1 className="text-2xl font-bold text-gray-900">Acceso</h1>
         <p className="mt-2 text-sm text-gray-600">
-          Entra con tu correo para acceder al club.
+          Acceso temporal de pruebas con email y contraseña.
         </p>
 
         <form onSubmit={handleLogin} className="mt-6 space-y-4">
@@ -52,12 +51,26 @@ export default function LoginPage() {
             />
           </div>
 
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Contraseña
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500"
+              placeholder="********"
+            />
+          </div>
+
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-lg bg-black px-4 py-3 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
           >
-            {loading ? 'Enviando...' : 'Entrar'}
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
 

@@ -55,7 +55,7 @@ export function PositionEditor({
       }
 
       if (result.reason === 'invalid_bank') {
-        setMessage('El banco debe ser un número entero mayor o igual que 1')
+        setMessage(result.message ?? 'El banco no es válido para este barco')
         setMessageType('error')
         return
       }

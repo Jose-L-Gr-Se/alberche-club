@@ -1,15 +1,16 @@
-import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { getCurrentProfile } from '@/lib/auth/get-current-profile'
 
-export default function HomePage() {
-  return (
-    <main className="min-h-screen bg-white p-8 text-black">
-      <h1 className="text-3xl font-bold">Alberche Club</h1>
-      <p className="mt-4">La aplicacion esta cargando correctamente.</p>
-      <div className="mt-6 flex gap-4">
-        <Link href="/login" className="rounded border px-4 py-2">
-          Login
-        </Link>
-      </div>
-    </main>
-  )
+export default async function HomePage() {
+  const profile = await getCurrentProfile()
+
+  if (!profile) {
+    redirect('/login')
+  }
+
+  if (profile.role === 'staff') {
+    redirect('/staff/sesiones')
+  }
+
+  redirect('/palista/sesiones')
 }
