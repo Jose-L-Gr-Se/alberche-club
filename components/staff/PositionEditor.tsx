@@ -20,13 +20,11 @@ export function PositionEditor({
     defaultBanco !== null ? String(defaultBanco) : ''
   )
   const [lado, setLado] = useState<string>(defaultLado ?? '')
-  const [message, setMessage] = useState<string | null>(null)
-  const [messageType, setMessageType] = useState<'success' | 'error' | null>(null)
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const handleSubmit = () => {
     setMessage(null)
-    setMessageType(null)
 
     const bancoParsed =
       banco.trim() === '' ? null : Number.parseInt(banco, 10)
@@ -42,32 +40,26 @@ export function PositionEditor({
         ladoParsed
       )
 
-      if (result.ok) {
-        setMessage('Posición guardada')
-        setMessageType('success')
+      if (!result.ok) {
+        setMessage({
+          type: 'error',
+          text: result.message ?? 'No se pudo actualizar la posición.',
+        })
         return
       }
 
-      if (result.reason === 'seat_taken') {
-        setMessage('Ese asiento ya está ocupado en este barco')
-        setMessageType('error')
+      if (result.issues?.warnings?.length) {
+        setMessage({
+          type: 'warning',
+          text: result.issues.warnings[0].message,
+        })
         return
       }
 
-      if (result.reason === 'invalid_bank') {
-        setMessage(result.message ?? 'El banco no es válido para este barco')
-        setMessageType('error')
-        return
-      }
-
-      if (result.reason === 'invalid_side') {
-        setMessage('El lado seleccionado no es válido')
-        setMessageType('error')
-        return
-      }
-
-      setMessage(result.message ?? 'No se pudo guardar la posición')
-      setMessageType('error')
+      setMessage({
+        type: 'success',
+        text: 'Posición actualizada.',
+      })
     })
   }
 
@@ -114,13 +106,15 @@ export function PositionEditor({
 
       {message ? (
         <div
-          className={`rounded-lg px-3 py-2 text-xs font-medium ${
-            messageType === 'success'
-              ? 'border border-green-200 bg-green-50 text-green-700'
-              : 'border border-red-200 bg-red-50 text-red-700'
-          }`}
+          className={
+            message.type === 'error'
+              ? 'rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700'
+              : message.type === 'warning'
+                ? 'rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-700'
+                : 'rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700'
+          }
         >
-          {message}
+          {message.text}
         </div>
       ) : null}
     </div>

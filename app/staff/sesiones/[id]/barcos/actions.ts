@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth/require-role'
 import { getBoatLayoutConfig } from '@/lib/boats/layout'
+import { evaluateAssignmentRules } from '@/lib/crew/assignment-rules'
 
 export async function crearBarcoDePrueba(sesionId: string) {
   await requireRole(['staff'])
@@ -152,7 +153,7 @@ export async function actualizarPosicionAsignacion(
 
   const { data: inscripcion, error: inscripcionError } = await supabase
     .from('inscripciones')
-    .select('id, sesion_id')
+    .select('id, sesion_id, lado_solicitado, prep_rec, tipo_hueco')
     .eq('id', inscripcionId)
     .single()
 
@@ -167,6 +168,22 @@ export async function actualizarPosicionAsignacion(
   if (!inscripcion || inscripcion.sesion_id !== sesionId) {
     return { ok: false as const, reason: 'invalid_session' as const }
   }
+
+  const { data: sesion, error: sesionError } = await supabase
+    .from('sesiones')
+    .select('id, tipo_entreno')
+    .eq('id', sesionId)
+    .single()
+
+  if (sesionError || !sesion) {
+    return {
+      ok: false as const,
+      reason: 'unknown' as const,
+      message: `No se pudo cargar la sesión: ${sesionError?.message ?? 'sin datos'}`,
+    }
+  }
+
+  let rules: ReturnType<typeof evaluateAssignmentRules> | undefined
 
   if (banco !== null && lado !== null) {
     const { data: asignacionActual, error: asignacionActualError } = await supabase
@@ -227,6 +244,29 @@ export async function actualizarPosicionAsignacion(
     if (colision) {
       return { ok: false as const, reason: 'seat_taken' as const }
     }
+
+    rules = evaluateAssignmentRules({
+      sesion: {
+        tipo_entreno: sesion.tipo_entreno ?? null,
+      },
+      inscripcion: {
+        lado_solicitado: inscripcion.lado_solicitado ?? null,
+        prep_rec: inscripcion.prep_rec ?? null,
+        tipo_hueco: inscripcion.tipo_hueco ?? null,
+      },
+      target: {
+        lado,
+      },
+    })
+
+    if (!rules.ok) {
+      return {
+        ok: false as const,
+        reason: 'rule_violation' as const,
+        message: rules.errors.map((item) => item.message).join(' '),
+        issues: rules,
+      }
+    }
   }
 
   const { error } = await supabase
@@ -247,7 +287,10 @@ export async function actualizarPosicionAsignacion(
   }
 
   revalidatePath(`/staff/sesiones/${sesionId}/barcos`)
-  return { ok: true as const }
+  return {
+    ok: true as const,
+    issues: rules,
+  }
 }
 
 export async function publicarPlanificacionSesion(sesionId: string) {
