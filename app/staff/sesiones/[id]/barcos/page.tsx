@@ -12,6 +12,7 @@ import {
 } from './actions'
 import { PositionEditor } from '@/components/staff/PositionEditor'
 import { evaluateAssignmentRules } from '@/lib/crew/assignment-rules'
+import { formatSidePreference } from '@/lib/crew/formatters'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -287,7 +288,7 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                         <div className="mt-2 flex flex-wrap gap-2">
                           {item.lado_solicitado && (
                             <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
-                              Lado: {item.lado_solicitado}
+                              Lado: {formatSidePreference(item.lado_solicitado)}
                             </span>
                           )}
                           {item.prep_rec && (
@@ -316,7 +317,7 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                         {item.profile?.peso_kg ?? '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
-                        {item.lado_solicitado ?? '—'}
+                        {formatSidePreference(item.lado_solicitado)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
                         {item.prep_rec ?? '—'}
@@ -559,7 +560,7 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                                       : 'Palista sin perfil'}
                                   </p>
                                   <p className="mt-1 text-sm text-gray-600">
-                                    {item.profile?.peso_kg ?? '—'} kg · preferencia lado: {item.lado_solicitado ?? '—'}
+                                    {item.profile?.peso_kg ?? '—'} kg · preferencia lado: {formatSidePreference(item.lado_solicitado)}
                                   </p>
                                   <div className="mt-2 flex flex-wrap gap-2">
                                     <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">

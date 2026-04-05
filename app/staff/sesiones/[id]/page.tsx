@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createTestInscripcion } from './actions'
 import { requireRole } from '@/lib/auth/require-role'
 import { AccessDenied } from '@/components/auth/AccessDenied'
+import { formatSidePreference } from '@/lib/crew/formatters'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -236,7 +237,7 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                       {inscripcion.estado}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
-                      {inscripcion.lado_solicitado ?? '—'}
+                      {formatSidePreference(inscripcion.lado_solicitado)}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
                       {inscripcion.prep_rec ?? '—'}
