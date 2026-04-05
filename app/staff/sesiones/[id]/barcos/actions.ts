@@ -311,6 +311,52 @@ export async function publicarPlanificacionSesion(sesionId: string) {
     return { ok: false as const, reason: 'no_boats' as const }
   }
 
+  const barcoIds = barcos.map((barco) => barco.id)
+
+  const { data: asignaciones, error: asignacionesError } = await supabase
+    .from('asignaciones_barco')
+    .select('id, inscripcion_id, barco_id, banco, lado')
+    .in('barco_id', barcoIds)
+
+  if (asignacionesError) {
+    throw new Error(`No se pudieron cargar las asignaciones: ${asignacionesError.message}`)
+  }
+
+  const { data: inscritos, error: inscritosError } = await supabase
+    .from('inscripciones')
+    .select('id')
+    .eq('sesion_id', sesionId)
+    .eq('estado', 'inscrito')
+
+  if (inscritosError) {
+    throw new Error(`No se pudieron cargar las inscripciones: ${inscritosError.message}`)
+  }
+
+  const inscritosIds = new Set((inscritos ?? []).map((item) => item.id))
+  const asignadosIds = new Set((asignaciones ?? []).map((item) => item.inscripcion_id))
+
+  const inscritosSinAsignar = [...inscritosIds].filter((id) => !asignadosIds.has(id))
+
+  if (inscritosSinAsignar.length > 0) {
+    return {
+      ok: false as const,
+      reason: 'unassigned_inscripciones' as const,
+      message: 'Hay personas inscritas sin asignar a ningún barco.',
+    }
+  }
+
+  const asignacionesIncompletas = (asignaciones ?? []).filter(
+    (item) => item.banco === null || item.lado === null
+  )
+
+  if (asignacionesIncompletas.length > 0) {
+    return {
+      ok: false as const,
+      reason: 'incomplete_assignments' as const,
+      message: 'Hay asignaciones sin banco o sin lado.',
+    }
+  }
+
   const ahora = new Date().toISOString()
 
   const { error: publishError } = await supabase

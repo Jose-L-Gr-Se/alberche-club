@@ -97,14 +97,21 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
     .eq('sesion_id', id)
     .order('orden_visual', { ascending: true })
 
+  const barcoIds = (barcos ?? []).map((barco) => barco.id)
   const hayBarcos = !!barcos && barcos.length > 0
   const todosPublicados = hayBarcos && barcos.every((barco) => barco.estado === 'publicado')
 
-  const { data: asignaciones, error: asignacionesError } = await supabase
-    .from('asignaciones_barco')
-    .select('id, barco_id, inscripcion_id, banco, lado')
+  const { data: asignaciones, error: asignacionesError } = barcoIds.length
+    ? await supabase
+        .from('asignaciones_barco')
+        .select('id, barco_id, inscripcion_id, banco, lado')
+        .in('barco_id', barcoIds)
+    : { data: [], error: null }
 
   const asignacionesList = asignaciones ?? []
+  const asignacionesIncompletas = asignacionesList.filter(
+    (item) => item.banco == null || item.lado == null
+  )
 
   const asignacionPorInscripcion = new Map(
     asignacionesList.map((item) => [item.inscripcion_id, item])
@@ -113,6 +120,8 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
   const inscritosPendientes = inscritosElegibles.filter(
     (item: any) => !asignacionPorInscripcion.has(item.id)
   )
+  const hayIncoherenciasPlanificacion =
+    inscritosPendientes.length > 0 || asignacionesIncompletas.length > 0
 
   const inscritosMap = new Map(
     inscritosElegibles.map((item: any) => [item.id, item])
@@ -184,35 +193,53 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <form
-            action={async () => {
-              'use server'
-              await crearBarcoDePrueba(id)
-            }}
-          >
-            <button
-              type="submit"
-              className="rounded-lg bg-black px-4 py-3 text-sm font-medium text-white hover:bg-gray-800"
-            >
-              Crear barco de prueba
-            </button>
-          </form>
+        <div className="flex flex-col items-stretch gap-3">
+          {!todosPublicados && hayIncoherenciasPlanificacion && (
+            <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+              {inscritosPendientes.length > 0 && (
+                <div>Hay inscritos pendientes de asignar.</div>
+              )}
+              {asignacionesIncompletas.length > 0 && (
+                <div>Hay personas asignadas sin banco o sin lado.</div>
+              )}
+            </div>
+          )}
 
-          <form
-            action={async () => {
-              'use server'
-              await publicarPlanificacionSesion(id)
-            }}
-          >
-            <button
-              type="submit"
-              disabled={!hayBarcos || todosPublicados}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          <div className="flex flex-wrap gap-3">
+            <form
+              action={async () => {
+                'use server'
+                await crearBarcoDePrueba(id)
+              }}
             >
-              {todosPublicados ? 'Planificación publicada' : 'Publicar planificación'}
-            </button>
-          </form>
+              <button
+                type="submit"
+                className="rounded-lg bg-black px-4 py-3 text-sm font-medium text-white hover:bg-gray-800"
+              >
+                Crear barco de prueba
+              </button>
+            </form>
+
+            <form
+              action={async () => {
+                'use server'
+                await publicarPlanificacionSesion(id)
+              }}
+            >
+              <button
+                type="submit"
+                disabled={
+                  !hayBarcos ||
+                  todosPublicados ||
+                  inscritosPendientes.length > 0 ||
+                  asignacionesIncompletas.length > 0
+                }
+                className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {todosPublicados ? 'Planificación publicada' : 'Cerrar y publicar planificación'}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
 
