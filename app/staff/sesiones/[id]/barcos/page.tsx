@@ -195,6 +195,8 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
     )
   }
 
+  const puedeGestionarBarcos = sesion.estado === 'en_planificacion'
+
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
       <div className="mb-8 flex items-start justify-between gap-4">
@@ -222,6 +224,12 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
         </div>
 
         <div className="flex flex-col items-stretch gap-3">
+          {!puedeGestionarBarcos && (
+            <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+              Los barcos solo se pueden gestionar cuando la sesión está en planificación.
+            </div>
+          )}
+
           {sesion?.estado !== 'publicada' && hayIncoherenciasPlanificacion && (
             <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
               {inscritosPendientes.length > 0 && (
@@ -242,7 +250,8 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
             >
               <button
                 type="submit"
-                className="rounded-lg bg-black px-4 py-3 text-sm font-medium text-white hover:bg-gray-800"
+                disabled={!puedeGestionarBarcos}
+                className="rounded-lg bg-black px-4 py-3 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Crear barco
               </button>
@@ -393,7 +402,8 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                             >
                               <button
                                 type="submit"
-                                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                disabled={!puedeGestionarBarcos}
+                                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 Asignar a {barco.nombre_visible ?? 'barco'}
                               </button>
@@ -518,7 +528,8 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                         >
                           <button
                             type="submit"
-                            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                            disabled={!puedeGestionarBarcos}
+                            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Borrar barco
                           </button>
@@ -655,6 +666,7 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                                     inscripcionId={item.id}
                                     defaultBanco={item.asignacion?.banco ?? null}
                                     defaultLado={item.asignacion?.lado ?? null}
+                                    disabled={!puedeGestionarBarcos}
                                   />
 
                                   <form
@@ -665,7 +677,8 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                                   >
                                     <button
                                       type="submit"
-                                      className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                                      disabled={!puedeGestionarBarcos}
+                                      className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                       Quitar
                                     </button>

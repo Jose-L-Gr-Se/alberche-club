@@ -4,6 +4,26 @@ import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth/require-role'
 
+async function cargarSesion(sesionId: string) {
+  const supabase = await createServerSupabaseClient()
+
+  const { data, error } = await supabase
+    .from('sesiones')
+    .select('id, estado')
+    .eq('id', sesionId)
+    .single()
+
+  if (error) {
+    throw new Error(`No se pudo cargar la sesión: ${error.message}`)
+  }
+
+  if (!data) {
+    throw new Error('La sesión no existe')
+  }
+
+  return { supabase, sesion: data }
+}
+
 async function cargarInscripcionDeSesion(sesionId: string, inscripcionId: string) {
   const supabase = await createServerSupabaseClient()
 
@@ -29,6 +49,15 @@ export async function marcarInscripcionComoInscrito(
   inscripcionId: string
 ) {
   await requireRole(['staff'])
+  const { sesion } = await cargarSesion(sesionId)
+
+  if (!['abierta_inscripcion', 'cerrada_inscripcion'].includes(sesion.estado)) {
+    return {
+      ok: false as const,
+      reason: 'invalid_session_state' as const,
+      message: 'No se pueden modificar inscripciones en el estado actual de la sesión.',
+    }
+  }
 
   const { supabase, inscripcion } = await cargarInscripcionDeSesion(sesionId, inscripcionId)
 
@@ -61,6 +90,15 @@ export async function marcarInscripcionComoListaEspera(
   inscripcionId: string
 ) {
   await requireRole(['staff'])
+  const { sesion } = await cargarSesion(sesionId)
+
+  if (!['abierta_inscripcion', 'cerrada_inscripcion'].includes(sesion.estado)) {
+    return {
+      ok: false as const,
+      reason: 'invalid_session_state' as const,
+      message: 'No se pueden modificar inscripciones en el estado actual de la sesión.',
+    }
+  }
 
   const { supabase, inscripcion } = await cargarInscripcionDeSesion(sesionId, inscripcionId)
 
@@ -93,6 +131,15 @@ export async function cancelarInscripcionDesdeStaff(
   inscripcionId: string
 ) {
   await requireRole(['staff'])
+  const { sesion } = await cargarSesion(sesionId)
+
+  if (!['abierta_inscripcion', 'cerrada_inscripcion'].includes(sesion.estado)) {
+    return {
+      ok: false as const,
+      reason: 'invalid_session_state' as const,
+      message: 'No se pueden modificar inscripciones en el estado actual de la sesión.',
+    }
+  }
 
   const { supabase, inscripcion } = await cargarInscripcionDeSesion(sesionId, inscripcionId)
 

@@ -6,6 +6,34 @@ import { requireRole } from '@/lib/auth/require-role'
 import { getBoatLayoutConfig } from '@/lib/boats/layout'
 import { evaluateAssignmentRules } from '@/lib/crew/assignment-rules'
 
+async function validarSesionEnPlanificacion(sesionId: string) {
+  const supabase = await createServerSupabaseClient()
+
+  const { data: sesion, error } = await supabase
+    .from('sesiones')
+    .select('id, estado')
+    .eq('id', sesionId)
+    .single()
+
+  if (error) {
+    throw new Error(`No se pudo cargar la sesión: ${error.message}`)
+  }
+
+  if (!sesion) {
+    throw new Error('La sesión no existe')
+  }
+
+  if (sesion.estado !== 'en_planificacion') {
+    return {
+      ok: false as const,
+      reason: 'invalid_session_state' as const,
+      message: 'Solo se pueden gestionar barcos cuando la sesión está en planificación.',
+    }
+  }
+
+  return { ok: true as const }
+}
+
 async function reordenarBarcosDeSesion(sesionId: string) {
   const supabase = await createServerSupabaseClient()
 
@@ -45,6 +73,8 @@ async function reordenarBarcosDeSesion(sesionId: string) {
 
 export async function crearBarco(sesionId: string) {
   await requireRole(['staff'])
+  const stateCheck = await validarSesionEnPlanificacion(sesionId)
+  if (!stateCheck.ok) return stateCheck
 
   const supabase = await createServerSupabaseClient()
 
@@ -79,6 +109,8 @@ export async function crearBarco(sesionId: string) {
 
 export async function eliminarBarco(sesionId: string, barcoId: string) {
   await requireRole(['staff'])
+  const stateCheck = await validarSesionEnPlanificacion(sesionId)
+  if (!stateCheck.ok) return stateCheck
 
   const supabase = await createServerSupabaseClient()
 
@@ -137,6 +169,8 @@ export async function asignarInscripcionABarco(
   barcoId: string
 ) {
   await requireRole(['staff'])
+  const stateCheck = await validarSesionEnPlanificacion(sesionId)
+  if (!stateCheck.ok) return stateCheck
 
   const supabase = await createServerSupabaseClient()
 
@@ -197,6 +231,8 @@ export async function desasignarInscripcionDeBarco(
   inscripcionId: string
 ) {
   await requireRole(['staff'])
+  const stateCheck = await validarSesionEnPlanificacion(sesionId)
+  if (!stateCheck.ok) return stateCheck
 
   const supabase = await createServerSupabaseClient()
 
@@ -233,6 +269,8 @@ export async function actualizarPosicionAsignacion(
   lado: 'izquierda' | 'derecha' | null
 ) {
   await requireRole(['staff'])
+  const stateCheck = await validarSesionEnPlanificacion(sesionId)
+  if (!stateCheck.ok) return stateCheck
 
   const supabase = await createServerSupabaseClient()
 

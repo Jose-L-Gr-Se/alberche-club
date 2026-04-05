@@ -94,6 +94,10 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
     )
   }
 
+  const puedeGestionarInscripciones =
+    sesion.estado === 'abierta_inscripcion' ||
+    sesion.estado === 'cerrada_inscripcion'
+
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
       <div className="mb-8">
@@ -190,6 +194,12 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
           <p className="text-sm text-gray-500">Personas apuntadas a esta sesión</p>
         </div>
 
+        {!puedeGestionarInscripciones && (
+          <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            Las inscripciones no se pueden modificar cuando la sesión está en planificación o publicada.
+          </div>
+        )}
+
         {inscripcionesError || profilesError ? (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             Error cargando inscripciones o perfiles:{' '}
@@ -210,7 +220,11 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Lado</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Prep/Rec</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Hueco</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Acciones</th>
+                  {puedeGestionarInscripciones && (
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Acciones
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -236,57 +250,59 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                     <td className="px-4 py-3 text-sm text-gray-700">
                       {inscripcion.tipo_hueco ?? '—'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      <div className="flex flex-wrap gap-2">
-                        {inscripcion.estado !== 'inscrito' && (
-                          <form
-                            action={async () => {
-                              'use server'
-                              await marcarInscripcionComoInscrito(sesion.id, inscripcion.id)
-                            }}
-                          >
-                            <button
-                              type="submit"
-                              className="rounded-lg border border-green-200 bg-white px-3 py-2 text-xs font-medium text-green-700 hover:bg-green-50"
+                    {puedeGestionarInscripciones && (
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        <div className="flex flex-wrap gap-2">
+                          {inscripcion.estado !== 'inscrito' && (
+                            <form
+                              action={async () => {
+                                'use server'
+                                await marcarInscripcionComoInscrito(sesion.id, inscripcion.id)
+                              }}
                             >
-                              Pasar a inscrito
-                            </button>
-                          </form>
-                        )}
+                              <button
+                                type="submit"
+                                className="rounded-lg border border-green-200 bg-white px-3 py-2 text-xs font-medium text-green-700 hover:bg-green-50"
+                              >
+                                Pasar a inscrito
+                              </button>
+                            </form>
+                          )}
 
-                        {inscripcion.estado !== 'lista_espera' && (
-                          <form
-                            action={async () => {
-                              'use server'
-                              await marcarInscripcionComoListaEspera(sesion.id, inscripcion.id)
-                            }}
-                          >
-                            <button
-                              type="submit"
-                              className="rounded-lg border border-yellow-200 bg-white px-3 py-2 text-xs font-medium text-yellow-700 hover:bg-yellow-50"
+                          {inscripcion.estado !== 'lista_espera' && (
+                            <form
+                              action={async () => {
+                                'use server'
+                                await marcarInscripcionComoListaEspera(sesion.id, inscripcion.id)
+                              }}
                             >
-                              Pasar a espera
-                            </button>
-                          </form>
-                        )}
+                              <button
+                                type="submit"
+                                className="rounded-lg border border-yellow-200 bg-white px-3 py-2 text-xs font-medium text-yellow-700 hover:bg-yellow-50"
+                              >
+                                Pasar a espera
+                              </button>
+                            </form>
+                          )}
 
-                        {inscripcion.estado !== 'cancelado' && (
-                          <form
-                            action={async () => {
-                              'use server'
-                              await cancelarInscripcionDesdeStaff(sesion.id, inscripcion.id)
-                            }}
-                          >
-                            <button
-                              type="submit"
-                              className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                          {inscripcion.estado !== 'cancelado' && (
+                            <form
+                              action={async () => {
+                                'use server'
+                                await cancelarInscripcionDesdeStaff(sesion.id, inscripcion.id)
+                              }}
                             >
-                              Cancelar
-                            </button>
-                          </form>
-                        )}
-                      </div>
-                    </td>
+                              <button
+                                type="submit"
+                                className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                              >
+                                Cancelar
+                              </button>
+                            </form>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

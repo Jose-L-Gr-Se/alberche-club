@@ -8,6 +8,7 @@ type Props = {
   inscripcionId: string
   defaultBanco: number | null
   defaultLado: 'izquierda' | 'derecha' | null
+  disabled?: boolean
 }
 
 export function PositionEditor({
@@ -15,6 +16,7 @@ export function PositionEditor({
   inscripcionId,
   defaultBanco,
   defaultLado,
+  disabled = false,
 }: Props) {
   const [banco, setBanco] = useState<string>(
     defaultBanco !== null ? String(defaultBanco) : ''
@@ -24,6 +26,8 @@ export function PositionEditor({
   const [isPending, startTransition] = useTransition()
 
   const handleSubmit = () => {
+    if (disabled) return
+
     setMessage(null)
 
     const bancoParsed =
@@ -75,6 +79,7 @@ export function PositionEditor({
             min={1}
             value={banco}
             onChange={(e) => setBanco(e.target.value)}
+            disabled={disabled}
             className="w-20 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
           />
         </div>
@@ -86,6 +91,7 @@ export function PositionEditor({
           <select
             value={lado}
             onChange={(e) => setLado(e.target.value)}
+            disabled={disabled}
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
           >
             <option value="">Sin definir</option>
@@ -97,7 +103,7 @@ export function PositionEditor({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={isPending}
+          disabled={disabled || isPending}
           className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isPending ? 'Guardando...' : 'Guardar posición'}
