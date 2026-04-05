@@ -1,7 +1,11 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { createTestInscripcion } from './actions'
+import {
+  cancelarInscripcionDesdeStaff,
+  marcarInscripcionComoInscrito,
+  marcarInscripcionComoListaEspera,
+} from './actions'
 import { pasarSesionAPlanificacion } from './barcos/actions'
 import { requireRole } from '@/lib/auth/require-role'
 import { AccessDenied } from '@/components/auth/AccessDenied'
@@ -66,11 +70,6 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
     ...inscripcion,
     profile: profilesMap.get(inscripcion.profile_id) ?? null,
   }))
-
-  const TEST_PROFILE_ID = 'e1830ea3-0941-4dd1-be68-aeba91d3cfbf'
-  const yaInscrito = inscripcionesConPerfil.some(
-    (inscripcion) => inscripcion.profile_id === TEST_PROFILE_ID
-  )
   const puedePasarAPlanificacion =
     sesion?.estado === 'abierta_inscripcion' ||
     sesion?.estado === 'cerrada_inscripcion'
@@ -185,37 +184,6 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
         </div>
       </div>
 
-      <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Acciones rápidas</h2>
-            <p className="text-sm text-gray-500">
-              Acción temporal para validar el flujo de inscripción desde la app
-            </p>
-          </div>
-
-          {yaInscrito ? (
-            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-medium text-green-700">
-              Ya existe una inscripción activa
-            </div>
-          ) : (
-            <form
-              action={async () => {
-                'use server'
-                await createTestInscripcion(sesion.id)
-              }}
-            >
-              <button
-                type="submit"
-                className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
-              >
-                Inscribirme (test)
-              </button>
-            </form>
-          )}
-        </div>
-      </section>
-
       <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Inscripciones</h2>
@@ -242,6 +210,7 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Lado</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Prep/Rec</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Hueco</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -266,6 +235,57 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
                       {inscripcion.tipo_hueco ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      <div className="flex flex-wrap gap-2">
+                        {inscripcion.estado !== 'inscrito' && (
+                          <form
+                            action={async () => {
+                              'use server'
+                              await marcarInscripcionComoInscrito(sesion.id, inscripcion.id)
+                            }}
+                          >
+                            <button
+                              type="submit"
+                              className="rounded-lg border border-green-200 bg-white px-3 py-2 text-xs font-medium text-green-700 hover:bg-green-50"
+                            >
+                              Pasar a inscrito
+                            </button>
+                          </form>
+                        )}
+
+                        {inscripcion.estado !== 'lista_espera' && (
+                          <form
+                            action={async () => {
+                              'use server'
+                              await marcarInscripcionComoListaEspera(sesion.id, inscripcion.id)
+                            }}
+                          >
+                            <button
+                              type="submit"
+                              className="rounded-lg border border-yellow-200 bg-white px-3 py-2 text-xs font-medium text-yellow-700 hover:bg-yellow-50"
+                            >
+                              Pasar a espera
+                            </button>
+                          </form>
+                        )}
+
+                        {inscripcion.estado !== 'cancelado' && (
+                          <form
+                            action={async () => {
+                              'use server'
+                              await cancelarInscripcionDesdeStaff(sesion.id, inscripcion.id)
+                            }}
+                          >
+                            <button
+                              type="submit"
+                              className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                            >
+                              Cancelar
+                            </button>
+                          </form>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
