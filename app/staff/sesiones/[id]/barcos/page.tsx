@@ -99,7 +99,10 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
 
   const barcoIds = (barcos ?? []).map((barco) => barco.id)
   const hayBarcos = !!barcos && barcos.length > 0
-  const todosPublicados = hayBarcos && barcos.every((barco) => barco.estado === 'publicado')
+  const todosPublicados =
+    sesion?.estado === 'publicada' ||
+    (hayBarcos && barcos.every((barco) => barco.estado === 'publicado'))
+  const sesionEnPlanificacion = sesion?.estado === 'en_planificacion'
 
   const { data: asignaciones, error: asignacionesError } = barcoIds.length
     ? await supabase
@@ -122,6 +125,36 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
   )
   const hayIncoherenciasPlanificacion =
     inscritosPendientes.length > 0 || asignacionesIncompletas.length > 0
+  const estadoVisualSesion =
+    sesion?.estado === 'abierta_inscripcion'
+      ? {
+          label: 'Inscripción abierta',
+          className:
+            'rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700',
+        }
+      : sesion?.estado === 'cerrada_inscripcion'
+        ? {
+            label: 'Inscripción cerrada',
+            className:
+              'rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700',
+          }
+        : sesion?.estado === 'en_planificacion'
+          ? {
+              label: 'En planificación',
+              className:
+                'rounded-full border border-yellow-200 bg-yellow-50 px-3 py-1 text-xs font-medium text-yellow-700',
+            }
+          : sesion?.estado === 'publicada'
+            ? {
+                label: 'Planificación publicada',
+                className:
+                  'rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700',
+              }
+            : {
+                label: sesion?.estado ?? 'Estado desconocido',
+                className:
+                  'rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700',
+              }
 
   const inscritosMap = new Map(
     inscritosElegibles.map((item: any) => [item.id, item])
@@ -181,20 +214,14 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
           </p>
 
           <div className="mt-3">
-            {todosPublicados ? (
-              <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
-                Planificación publicada
-              </span>
-            ) : (
-              <span className="rounded-full border border-yellow-200 bg-yellow-50 px-3 py-1 text-xs font-medium text-yellow-700">
-                Borrador interno
-              </span>
-            )}
+            <span className={estadoVisualSesion.className}>
+              {estadoVisualSesion.label}
+            </span>
           </div>
         </div>
 
         <div className="flex flex-col items-stretch gap-3">
-          {!todosPublicados && hayIncoherenciasPlanificacion && (
+          {sesion?.estado !== 'publicada' && hayIncoherenciasPlanificacion && (
             <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
               {inscritosPendientes.length > 0 && (
                 <div>Hay inscritos pendientes de asignar.</div>
@@ -231,6 +258,7 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                 disabled={
                   !hayBarcos ||
                   todosPublicados ||
+                  !sesionEnPlanificacion ||
                   inscritosPendientes.length > 0 ||
                   asignacionesIncompletas.length > 0
                 }

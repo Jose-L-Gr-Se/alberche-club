@@ -293,10 +293,79 @@ export async function actualizarPosicionAsignacion(
   }
 }
 
+export async function pasarSesionAPlanificacion(sesionId: string) {
+  await requireRole(['staff'])
+
+  const supabase = await createServerSupabaseClient()
+
+  const { data: sesion, error: sesionError } = await supabase
+    .from('sesiones')
+    .select('id, estado')
+    .eq('id', sesionId)
+    .single()
+
+  if (sesionError) {
+    throw new Error(`No se pudo cargar la sesión: ${sesionError.message}`)
+  }
+
+  if (!sesion) {
+    throw new Error('La sesión no existe.')
+  }
+
+  if (
+    sesion.estado !== 'abierta_inscripcion' &&
+    sesion.estado !== 'cerrada_inscripcion'
+  ) {
+    return {
+      ok: false as const,
+      reason: 'invalid_session_state' as const,
+      message: 'La sesión debe estar en inscripción abierta o cerrada para pasar a planificación.',
+    }
+  }
+
+  const ahora = new Date().toISOString()
+
+  const { error: updateError } = await supabase
+    .from('sesiones')
+    .update({
+      estado: 'en_planificacion',
+      updated_at: ahora,
+    })
+    .eq('id', sesionId)
+
+  if (updateError) {
+    throw new Error(`No se pudo actualizar la sesión: ${updateError.message}`)
+  }
+
+  revalidatePath('/staff/sesiones')
+  revalidatePath(`/staff/sesiones/${sesionId}`)
+  revalidatePath(`/staff/sesiones/${sesionId}/barcos`)
+
+  return { ok: true as const }
+}
+
 export async function publicarPlanificacionSesion(sesionId: string) {
   await requireRole(['staff'])
 
   const supabase = await createServerSupabaseClient()
+
+  const { data: sesion, error: sesionLoadError } = await supabase
+    .from('sesiones')
+    .select('id, estado')
+    .eq('id', sesionId)
+    .single()
+
+  if (sesionLoadError) {
+    throw new Error(`No se pudo cargar la sesión: ${sesionLoadError.message}`)
+  }
+
+  if (!sesion || sesion.estado !== 'en_planificacion') {
+    return {
+      ok: false as const,
+      reason: 'invalid_session_state' as const,
+      message: 'La sesión debe estar en planificación antes de publicarse.',
+    }
+  }
 
   const { data: barcos, error: barcosError } = await supabase
     .from('barcos')
@@ -374,6 +443,7 @@ export async function publicarPlanificacionSesion(sesionId: string) {
   const { error: sesionError } = await supabase
     .from('sesiones')
     .update({
+      estado: 'publicada',
       publicada_at: ahora,
       updated_at: ahora,
     })

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createTestInscripcion } from './actions'
+import { pasarSesionAPlanificacion } from './barcos/actions'
 import { requireRole } from '@/lib/auth/require-role'
 import { AccessDenied } from '@/components/auth/AccessDenied'
 import { formatSidePreference } from '@/lib/crew/formatters'
@@ -70,6 +71,9 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
   const yaInscrito = inscripcionesConPerfil.some(
     (inscripcion) => inscripcion.profile_id === TEST_PROFILE_ID
   )
+  const puedePasarAPlanificacion =
+    sesion?.estado === 'abierta_inscripcion' ||
+    sesion?.estado === 'cerrada_inscripcion'
 
   if (sesionError) {
     return (
@@ -155,12 +159,30 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
       </section>
 
       <div className="mb-8">
-        <Link
-          href={`/staff/sesiones/${sesion.id}/barcos`}
-          className="inline-flex rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
-        >
-          Ir a planificación de barcos
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href={`/staff/sesiones/${sesion.id}/barcos`}
+            className="inline-flex rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            Ir a planificación de barcos
+          </Link>
+
+          {puedePasarAPlanificacion && (
+            <form
+              action={async () => {
+                'use server'
+                await pasarSesionAPlanificacion(sesion.id)
+              }}
+            >
+              <button
+                type="submit"
+                className="inline-flex rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Pasar a planificación
+              </button>
+            </form>
+          )}
+        </div>
       </div>
 
       <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
