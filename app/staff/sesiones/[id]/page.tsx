@@ -93,9 +93,29 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
       <div className="mb-8">
-        <h1 className="text-xl font-semibold text-gray-900">Detalle de sesión</h1>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <Link
+            href="/staff/sesiones"
+            className="text-gray-500 hover:text-gray-700"
+          >
+            ← Volver a sesiones
+          </Link>
+
+          <span className="text-gray-300">/</span>
+
+          <Link
+            href={`/staff/sesiones/${sesion.id}/barcos`}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            Ir a planificación de barcos
+          </Link>
+        </div>
+
+        <h1 className="mt-3 text-2xl font-bold text-gray-900">
+          Detalle de sesión
+        </h1>
         <p className="mt-1 text-sm text-gray-500">
-          Vista inicial operativa de la sesión
+          Vista operativa de la sesión
         </p>
       </div>
 
