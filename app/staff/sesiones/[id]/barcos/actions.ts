@@ -6,21 +6,60 @@ import { requireRole } from '@/lib/auth/require-role'
 import { getBoatLayoutConfig } from '@/lib/boats/layout'
 import { evaluateAssignmentRules } from '@/lib/crew/assignment-rules'
 
+async function reordenarBarcosDeSesion(sesionId: string) {
+  const supabase = await createServerSupabaseClient()
+
+  const { data: barcos, error } = await supabase
+    .from('barcos')
+    .select('id')
+    .eq('sesion_id', sesionId)
+    .order('orden_visual', { ascending: true })
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    throw new Error(`No se pudieron cargar los barcos para reordenar: ${error.message}`)
+  }
+
+  const updates = (barcos ?? []).map((barco, index) => ({
+    id: barco.id,
+    orden_visual: index + 1,
+    nombre_visible: `Barco ${index + 1}`,
+    updated_at: new Date().toISOString(),
+  }))
+
+  for (const update of updates) {
+    const { error: updateError } = await supabase
+      .from('barcos')
+      .update({
+        orden_visual: update.orden_visual,
+        nombre_visible: update.nombre_visible,
+        updated_at: update.updated_at,
+      })
+      .eq('id', update.id)
+
+    if (updateError) {
+      throw new Error(`No se pudo reordenar un barco: ${updateError.message}`)
+    }
+  }
+}
+
 export async function crearBarco(sesionId: string) {
   await requireRole(['staff'])
 
   const supabase = await createServerSupabaseClient()
 
-  const { count, error: existentesError } = await supabase
+  const { data: barcosExistentes, error: existentesError } = await supabase
     .from('barcos')
-    .select('*', { count: 'exact', head: true })
+    .select('orden_visual')
     .eq('sesion_id', sesionId)
+    .order('orden_visual', { ascending: false })
+    .limit(1)
 
   if (existentesError) {
     throw new Error(`No se pudo consultar los barcos existentes: ${existentesError.message}`)
   }
 
-  const orden = (count ?? 0) + 1
+  const orden = (barcosExistentes?.[0]?.orden_visual ?? 0) + 1
 
   const { error } = await supabase.from('barcos').insert({
     sesion_id: sesionId,
@@ -83,6 +122,8 @@ export async function eliminarBarco(sesionId: string, barcoId: string) {
   if (deleteError) {
     throw new Error(`No se pudo borrar el barco: ${deleteError.message}`)
   }
+
+  await reordenarBarcosDeSesion(sesionId)
 
   revalidatePath(`/staff/sesiones/${sesionId}/barcos`)
   revalidatePath(`/staff/sesiones/${sesionId}`)
