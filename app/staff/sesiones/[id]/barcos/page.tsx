@@ -6,8 +6,9 @@ import { AccessDenied } from '@/components/auth/AccessDenied'
 import { getBoatLayoutConfig } from '@/lib/boats/layout'
 import {
   asignarInscripcionABarco,
-  crearBarcoDePrueba,
+  crearBarco,
   desasignarInscripcionDeBarco,
+  eliminarBarco,
   publicarPlanificacionSesion,
 } from './actions'
 import { PositionEditor } from '@/components/staff/PositionEditor'
@@ -236,14 +237,14 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
             <form
               action={async () => {
                 'use server'
-                await crearBarcoDePrueba(id)
+                await crearBarco(id)
               }}
             >
               <button
                 type="submit"
                 className="rounded-lg bg-black px-4 py-3 text-sm font-medium text-white hover:bg-gray-800"
               >
-                Crear barco de prueba
+                Crear barco
               </button>
             </form>
 
@@ -504,9 +505,25 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                         </p>
                       </div>
 
-                      <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600">
-                        {barco.estado}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600">
+                          {barco.estado}
+                        </span>
+
+                        <form
+                          action={async () => {
+                            'use server'
+                            await eliminarBarco(id, barco.id)
+                          }}
+                        >
+                          <button
+                            type="submit"
+                            className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50"
+                          >
+                            Borrar barco
+                          </button>
+                        </form>
+                      </div>
                     </div>
 
                     <div className="mt-4">

@@ -6,7 +6,7 @@ import { requireRole } from '@/lib/auth/require-role'
 import { getBoatLayoutConfig } from '@/lib/boats/layout'
 import { evaluateAssignmentRules } from '@/lib/crew/assignment-rules'
 
-export async function crearBarcoDePrueba(sesionId: string) {
+export async function crearBarco(sesionId: string) {
   await requireRole(['staff'])
 
   const supabase = await createServerSupabaseClient()
@@ -36,6 +36,58 @@ export async function crearBarcoDePrueba(sesionId: string) {
   }
 
   revalidatePath(`/staff/sesiones/${sesionId}/barcos`)
+}
+
+export async function eliminarBarco(sesionId: string, barcoId: string) {
+  await requireRole(['staff'])
+
+  const supabase = await createServerSupabaseClient()
+
+  const { data: barco, error: barcoError } = await supabase
+    .from('barcos')
+    .select('id, sesion_id, estado')
+    .eq('id', barcoId)
+    .single()
+
+  if (barcoError) {
+    throw new Error(`No se pudo cargar el barco: ${barcoError.message}`)
+  }
+
+  if (!barco || barco.sesion_id !== sesionId) {
+    throw new Error('El barco no pertenece a esta sesión')
+  }
+
+  const { data: asignaciones, error: asignacionesError } = await supabase
+    .from('asignaciones_barco')
+    .select('id')
+    .eq('barco_id', barcoId)
+    .limit(1)
+
+  if (asignacionesError) {
+    throw new Error(`No se pudieron comprobar las asignaciones del barco: ${asignacionesError.message}`)
+  }
+
+  if ((asignaciones ?? []).length > 0) {
+    return {
+      ok: false as const,
+      reason: 'boat_has_assignments' as const,
+      message: 'No puedes borrar un barco que tiene personas asignadas.',
+    }
+  }
+
+  const { error: deleteError } = await supabase
+    .from('barcos')
+    .delete()
+    .eq('id', barcoId)
+
+  if (deleteError) {
+    throw new Error(`No se pudo borrar el barco: ${deleteError.message}`)
+  }
+
+  revalidatePath(`/staff/sesiones/${sesionId}/barcos`)
+  revalidatePath(`/staff/sesiones/${sesionId}`)
+
+  return { ok: true as const }
 }
 
 export async function asignarInscripcionABarco(
