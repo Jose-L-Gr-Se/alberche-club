@@ -11,6 +11,7 @@ import {
   publicarPlanificacionSesion,
 } from './actions'
 import { PositionEditor } from '@/components/staff/PositionEditor'
+import { evaluateAssignmentRules } from '@/lib/crew/assignment-rules'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -67,10 +68,27 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
     (profiles ?? []).map((profile) => [profile.id, profile])
   )
 
-  const inscritosElegibles = (inscripciones ?? []).map((inscripcion) => ({
-    ...inscripcion,
-    profile: profilesMap.get(inscripcion.profile_id) ?? null,
-  }))
+  const inscritosElegibles = (inscripciones ?? []).map((inscripcion) => {
+    const rules = evaluateAssignmentRules({
+      sesion: {
+        tipo_entreno: sesion?.tipo_entreno ?? null,
+      },
+      inscripcion: {
+        lado_solicitado: inscripcion.lado_solicitado ?? null,
+        prep_rec: inscripcion.prep_rec ?? null,
+        tipo_hueco: inscripcion.tipo_hueco ?? null,
+      },
+      target: {
+        lado: null,
+      },
+    })
+
+    return {
+      ...inscripcion,
+      profile: profilesMap.get(inscripcion.profile_id) ?? null,
+      rules,
+    }
+  })
 
   const { data: barcos, error: barcosError } = await supabase
     .from('barcos')
@@ -261,9 +279,38 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                   {inscritosPendientes.map((item: any) => (
                     <tr key={item.id}>
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {item.profile
-                          ? `${item.profile.nombre} ${item.profile.apellidos}`
-                          : '—'}
+                        <div>
+                          {item.profile
+                            ? `${item.profile.nombre} ${item.profile.apellidos}`
+                            : '—'}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {item.lado_solicitado && (
+                            <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
+                              Lado: {item.lado_solicitado}
+                            </span>
+                          )}
+                          {item.prep_rec && (
+                            <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
+                              Prep/Rec: {item.prep_rec}
+                            </span>
+                          )}
+                          {item.tipo_hueco && (
+                            <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
+                              Hueco: {item.tipo_hueco}
+                            </span>
+                          )}
+                          {item.rules?.warnings?.length > 0 && (
+                            <span className="rounded-full border border-yellow-200 bg-yellow-50 px-2.5 py-1 text-xs font-medium text-yellow-700">
+                              {item.rules.warnings.length} aviso{item.rules.warnings.length > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                        {item.rules?.warnings?.length > 0 && (
+                          <p className="mt-2 text-xs text-yellow-700">
+                            {item.rules.warnings[0].message}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
                         {item.profile?.peso_kg ?? '—'}
@@ -484,7 +531,22 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                         <p className="mt-2 text-sm text-gray-500">Todavía no hay personas asignadas.</p>
                       ) : (
                         <div className="mt-2 grid gap-2">
-                          {asignados.map((item: any) => (
+                          {asignados.map((item: any) => {
+                            const assignmentRules = evaluateAssignmentRules({
+                              sesion: {
+                                tipo_entreno: sesion.tipo_entreno ?? null,
+                              },
+                              inscripcion: {
+                                lado_solicitado: item.lado_solicitado ?? null,
+                                prep_rec: item.prep_rec ?? null,
+                                tipo_hueco: item.tipo_hueco ?? null,
+                              },
+                              target: {
+                                lado: item.asignacion?.lado ?? null,
+                              },
+                            })
+
+                            return (
                             <div
                               key={item.id}
                               className="rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-700"
@@ -507,6 +569,11 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                                       {item.asignacion?.lado ?? 'Sin lado'}
                                     </span>
                                   </div>
+                                  {assignmentRules.warnings.length > 0 && (
+                                    <div className="mt-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-700">
+                                      {assignmentRules.warnings[0].message}
+                                    </div>
+                                  )}
                                 </div>
 
                                 <div className="flex flex-col gap-2">
@@ -533,7 +600,8 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                                 </div>
                               </div>
                             </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
                     </div>
