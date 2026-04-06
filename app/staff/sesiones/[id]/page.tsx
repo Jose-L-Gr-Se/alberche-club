@@ -70,6 +70,12 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
     ...inscripcion,
     profile: profilesMap.get(inscripcion.profile_id) ?? null,
   }))
+  const inscripcionesActivas = inscripcionesConPerfil.filter(
+    (item) => item.estado === 'inscrito' || item.estado === 'lista_espera'
+  )
+  const inscripcionesCanceladas = inscripcionesConPerfil.filter(
+    (item) => item.estado === 'cancelado'
+  )
   const puedePasarAPlanificacion =
     sesion?.estado === 'abierta_inscripcion' ||
     sesion?.estado === 'cerrada_inscripcion'
@@ -189,9 +195,20 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
       </div>
 
       <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Inscripciones</h2>
-          <p className="text-sm text-gray-500">Personas apuntadas a esta sesión</p>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Inscripciones</h2>
+            <p className="text-sm text-gray-500">Personas apuntadas a esta sesión</p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
+              Activas: {inscripcionesActivas.length}
+            </span>
+            <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
+              Canceladas: {inscripcionesCanceladas.length}
+            </span>
+          </div>
         </div>
 
         {!puedeGestionarInscripciones && (
@@ -205,9 +222,9 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
             Error cargando inscripciones o perfiles:{' '}
             {inscripcionesError?.message || profilesError?.message}
           </div>
-        ) : inscripcionesConPerfil.length === 0 ? (
+        ) : inscripcionesActivas.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 px-6 py-8 text-center text-sm text-gray-500">
-            No hay inscripciones todavía.
+            No hay inscripciones activas en esta sesión.
           </div>
         ) : (
           <div className="overflow-hidden rounded-lg border border-gray-200">
@@ -228,7 +245,7 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {inscripcionesConPerfil.map((inscripcion: any) => (
+                {inscripcionesActivas.map((inscripcion) => (
                   <tr key={inscripcion.id}>
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {inscripcion.profile
@@ -309,6 +326,72 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
             </table>
           </div>
         )}
+
+        <section className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-6">
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold text-gray-900">Histórico de canceladas</h3>
+            <p className="text-sm text-gray-500">
+              Inscripciones canceladas que ya no participan en la operativa actual.
+            </p>
+          </div>
+
+          {inscripcionesCanceladas.length === 0 ? (
+            <p className="text-sm text-gray-500">No hay inscripciones canceladas.</p>
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Nombre
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Peso
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Estado
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Lado
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Prep/Rec
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Hueco
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {inscripcionesCanceladas.map((inscripcion) => (
+                    <tr key={inscripcion.id}>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {inscripcion.profile
+                          ? `${inscripcion.profile.nombre} ${inscripcion.profile.apellidos}`
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {inscripcion.profile?.peso_kg ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {inscripcion.estado}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {formatSidePreference(inscripcion.lado_solicitado)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {inscripcion.prep_rec ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {inscripcion.tipo_hueco ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </section>
     </main>
   )
