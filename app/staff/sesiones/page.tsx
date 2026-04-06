@@ -17,6 +17,7 @@ type Sesion = {
 type PageProps = {
   searchParams?: Promise<{
     estado?: string
+    q?: string
   }>
 }
 
@@ -147,6 +148,22 @@ function sesionPasaFiltro(estado: string, filtro: string) {
   return true
 }
 
+function sesionPasaBusqueda(sesion: Sesion, query: string) {
+  if (!query) return true
+
+  const texto = [
+    sesion.fecha,
+    sesion.tipo_entreno,
+    sesion.hora_inicio,
+    sesion.sede ?? '',
+    sesion.estado,
+  ]
+    .join(' ')
+    .toLowerCase()
+
+  return texto.includes(query)
+}
+
 export default async function StaffSesionesPage({ searchParams }: PageProps) {
   try {
     await requireRole(['staff'])
@@ -164,6 +181,8 @@ export default async function StaffSesionesPage({ searchParams }: PageProps) {
 
   const resolvedSearchParams = await searchParams
   const estadoFiltro = resolvedSearchParams?.estado ?? 'operativas'
+  const query = resolvedSearchParams?.q?.trim() ?? ''
+  const queryNormalizada = query.toLowerCase()
   const estadoFiltroActual = filtrosSesiones.some(
     (filtro) => filtro.value === estadoFiltro
   )
@@ -205,7 +224,8 @@ export default async function StaffSesionesPage({ searchParams }: PageProps) {
     return a.hora_inicio.localeCompare(b.hora_inicio)
   })
   const sesionesFiltradas = sesionesOrdenadas.filter((sesion) =>
-    sesionPasaFiltro(sesion.estado, estadoFiltroActual)
+    sesionPasaFiltro(sesion.estado, estadoFiltroActual) &&
+    sesionPasaBusqueda(sesion, queryNormalizada)
   )
 
   const sesionesConInscripciones = sesiones.filter(
@@ -294,10 +314,46 @@ export default async function StaffSesionesPage({ searchParams }: PageProps) {
         })}
       </div>
 
+      <form method="GET" className="mb-6">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <input
+            type="text"
+            name="q"
+            defaultValue={query}
+            placeholder="Buscar por fecha, entreno, sede o estado"
+            className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400"
+          />
+
+          <input type="hidden" name="estado" value={estadoFiltroActual} />
+
+          <button
+            type="submit"
+            className="rounded-lg bg-black px-4 py-3 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            Buscar
+          </button>
+        </div>
+      </form>
+
+      {query && (
+        <div className="mb-6">
+          <Link
+            href={
+              estadoFiltroActual === 'operativas'
+                ? '/staff/sesiones'
+                : `/staff/sesiones?estado=${estadoFiltroActual}`
+            }
+            className="inline-flex rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Limpiar búsqueda
+          </Link>
+        </div>
+      )}
+
       {sesionesFiltradas.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 bg-white px-6 py-10 text-center">
           <p className="text-sm text-gray-500">
-            No hay sesiones para el filtro seleccionado.
+            No hay sesiones que coincidan con el filtro o búsqueda actual.
           </p>
         </div>
       ) : (
