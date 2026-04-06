@@ -4,6 +4,20 @@ import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth/require-role'
 
+type NextEstadoSesion =
+  | 'abierta_inscripcion'
+  | 'cerrada_inscripcion'
+  | 'en_planificacion'
+  | 'cancelada'
+
+const allowedTransitions: Record<string, string[]> = {
+  abierta_inscripcion: ['cerrada_inscripcion', 'cancelada'],
+  cerrada_inscripcion: ['abierta_inscripcion', 'en_planificacion', 'cancelada'],
+  en_planificacion: ['cerrada_inscripcion', 'cancelada'],
+  publicada: ['en_planificacion', 'cancelada'],
+  cancelada: ['abierta_inscripcion', 'cerrada_inscripcion'],
+}
+
 async function cargarSesion(sesionId: string) {
   const supabase = await createServerSupabaseClient()
 
@@ -22,6 +36,46 @@ async function cargarSesion(sesionId: string) {
   }
 
   return { supabase, sesion: data }
+}
+
+export async function cambiarEstadoSesion(
+  sesionId: string,
+  nextEstado: NextEstadoSesion
+) {
+  await requireRole(['staff'])
+  const { supabase, sesion } = await cargarSesion(sesionId)
+
+  const transicionesPermitidas = allowedTransitions[sesion.estado] ?? []
+
+  if (!transicionesPermitidas.includes(nextEstado)) {
+    return {
+      ok: false as const,
+      reason: 'invalid_transition' as const,
+      message: 'La transición de estado no está permitida.',
+    }
+  }
+
+  const ahora = new Date().toISOString()
+
+  const { error } = await supabase
+    .from('sesiones')
+    .update({
+      estado: nextEstado,
+      updated_at: ahora,
+    })
+    .eq('id', sesionId)
+
+  if (error) {
+    throw new Error(`No se pudo actualizar la sesión: ${error.message}`)
+  }
+
+  revalidatePath('/staff/sesiones')
+  revalidatePath(`/staff/sesiones/${sesionId}`)
+  revalidatePath(`/staff/sesiones/${sesionId}/barcos`)
+  revalidatePath('/palista/sesiones')
+  revalidatePath('/palista/barcos')
+
+  return { ok: true as const }
 }
 
 async function cargarInscripcionDeSesion(sesionId: string, inscripcionId: string) {

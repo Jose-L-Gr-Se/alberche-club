@@ -2,17 +2,118 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import {
+  cambiarEstadoSesion,
   cancelarInscripcionDesdeStaff,
   marcarInscripcionComoInscrito,
   marcarInscripcionComoListaEspera,
 } from './actions'
-import { pasarSesionAPlanificacion } from './barcos/actions'
 import { requireRole } from '@/lib/auth/require-role'
 import { AccessDenied } from '@/components/auth/AccessDenied'
 import { formatSidePreference } from '@/lib/crew/formatters'
 
 type PageProps = {
   params: Promise<{ id: string }>
+}
+
+type CambioEstadoSesionOption = {
+  label: string
+  nextEstado:
+    | 'abierta_inscripcion'
+    | 'cerrada_inscripcion'
+    | 'en_planificacion'
+    | 'cancelada'
+  tone?: 'default' | 'danger'
+}
+
+function getEstadoSesionVisual(estado: string) {
+  if (estado === 'abierta_inscripcion') {
+    return {
+      label: 'Inscripción abierta',
+      className:
+        'rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700',
+    }
+  }
+
+  if (estado === 'cerrada_inscripcion') {
+    return {
+      label: 'Inscripción cerrada',
+      className:
+        'rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700',
+    }
+  }
+
+  if (estado === 'en_planificacion') {
+    return {
+      label: 'En planificación',
+      className:
+        'rounded-full border border-yellow-200 bg-yellow-50 px-3 py-1 text-xs font-medium text-yellow-700',
+    }
+  }
+
+  if (estado === 'publicada') {
+    return {
+      label: 'Publicada',
+      className:
+        'rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-medium text-green-700',
+    }
+  }
+
+  if (estado === 'cancelada') {
+    return {
+      label: 'Cancelada',
+      className:
+        'rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700',
+    }
+  }
+
+  return {
+    label: estado,
+    className:
+      'rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700',
+  }
+}
+
+function getAccionesEstadoSesion(estado: string): CambioEstadoSesionOption[] {
+  if (estado === 'abierta_inscripcion') {
+    return [
+      { label: 'Cerrar inscripción', nextEstado: 'cerrada_inscripcion' },
+      { label: 'Cancelar sesión', nextEstado: 'cancelada', tone: 'danger' },
+    ]
+  }
+
+  if (estado === 'cerrada_inscripcion') {
+    return [
+      { label: 'Reabrir inscripción', nextEstado: 'abierta_inscripcion' },
+      { label: 'Pasar a planificación', nextEstado: 'en_planificacion' },
+      { label: 'Cancelar sesión', nextEstado: 'cancelada', tone: 'danger' },
+    ]
+  }
+
+  if (estado === 'en_planificacion') {
+    return [
+      {
+        label: 'Volver a inscripción cerrada',
+        nextEstado: 'cerrada_inscripcion',
+      },
+      { label: 'Cancelar sesión', nextEstado: 'cancelada', tone: 'danger' },
+    ]
+  }
+
+  if (estado === 'publicada') {
+    return [
+      { label: 'Reabrir planificación', nextEstado: 'en_planificacion' },
+      { label: 'Cancelar sesión', nextEstado: 'cancelada', tone: 'danger' },
+    ]
+  }
+
+  if (estado === 'cancelada') {
+    return [
+      { label: 'Reabrir inscripción', nextEstado: 'abierta_inscripcion' },
+      { label: 'Dejar cerrada', nextEstado: 'cerrada_inscripcion' },
+    ]
+  }
+
+  return []
 }
 
 export default async function StaffSesionDetallePage({ params }: PageProps) {
@@ -76,9 +177,6 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
   const inscripcionesCanceladas = inscripcionesConPerfil.filter(
     (item) => item.estado === 'cancelado'
   )
-  const puedePasarAPlanificacion =
-    sesion?.estado === 'abierta_inscripcion' ||
-    sesion?.estado === 'cerrada_inscripcion'
 
   if (sesionError) {
     return (
@@ -103,6 +201,8 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
   const puedeGestionarInscripciones =
     sesion.estado === 'abierta_inscripcion' ||
     sesion.estado === 'cerrada_inscripcion'
+  const estadoSesionVisual = getEstadoSesionVisual(sesion.estado)
+  const accionesEstadoSesion = getAccionesEstadoSesion(sesion.estado)
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
@@ -167,32 +267,51 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
         </div>
       </section>
 
-      <div className="mb-8">
-        <div className="flex flex-wrap gap-3">
+      <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Estado de la sesión</h2>
+            <p className="text-sm text-gray-500">
+              Control manual del flujo operativo. La publicación se sigue
+              gestionando desde planificación de barcos.
+            </p>
+          </div>
+
+          <span className={estadoSesionVisual.className}>
+            {estadoSesionVisual.label}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {accionesEstadoSesion.map((accion) => (
+            <form
+              key={accion.label}
+              action={async () => {
+                'use server'
+                await cambiarEstadoSesion(sesion.id, accion.nextEstado)
+              }}
+            >
+              <button
+                type="submit"
+                className={
+                  accion.tone === 'danger'
+                    ? 'rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50'
+                    : 'rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50'
+                }
+              >
+                {accion.label}
+              </button>
+            </form>
+          ))}
+
           <Link
             href={`/staff/sesiones/${sesion.id}/barcos`}
             className="inline-flex rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
           >
             Ir a planificación de barcos
           </Link>
-
-          {puedePasarAPlanificacion && (
-            <form
-              action={async () => {
-                'use server'
-                await pasarSesionAPlanificacion(sesion.id)
-              }}
-            >
-              <button
-                type="submit"
-                className="inline-flex rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Pasar a planificación
-              </button>
-            </form>
-          )}
         </div>
-      </div>
+      </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -213,7 +332,7 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
 
         {!puedeGestionarInscripciones && (
           <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-            Las inscripciones no se pueden modificar cuando la sesión está en planificación o publicada.
+            Las inscripciones no se pueden modificar en el estado actual de la sesión.
           </div>
         )}
 
