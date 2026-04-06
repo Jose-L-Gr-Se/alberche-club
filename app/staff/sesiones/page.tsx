@@ -14,6 +14,12 @@ type Sesion = {
   estado: string
 }
 
+type PageProps = {
+  searchParams?: Promise<{
+    estado?: string
+  }>
+}
+
 type EstadoVisual = {
   label: string
   badgeClassName: string
@@ -25,6 +31,13 @@ type SesionPrimaryAction = {
   label: string
   className: string
 }
+
+const filtrosSesiones = [
+  { value: 'todas', label: 'Todas' },
+  { value: 'operativas', label: 'Operativas' },
+  { value: 'publicadas', label: 'Publicadas' },
+  { value: 'canceladas', label: 'Canceladas' },
+] as const
 
 const estadoVisualMap: Record<string, EstadoVisual> = {
   abierta_inscripcion: {
@@ -112,7 +125,29 @@ function getSesionPrimaryAction(sesion: Sesion): SesionPrimaryAction | null {
   return null
 }
 
-export default async function StaffSesionesPage() {
+function sesionPasaFiltro(estado: string, filtro: string) {
+  if (filtro === 'todas') return true
+
+  if (filtro === 'operativas') {
+    return [
+      'abierta_inscripcion',
+      'cerrada_inscripcion',
+      'en_planificacion',
+    ].includes(estado)
+  }
+
+  if (filtro === 'publicadas') {
+    return estado === 'publicada' || estado === 'finalizada'
+  }
+
+  if (filtro === 'canceladas') {
+    return estado === 'cancelada'
+  }
+
+  return true
+}
+
+export default async function StaffSesionesPage({ searchParams }: PageProps) {
   try {
     await requireRole(['staff'])
   } catch (error) {
@@ -126,6 +161,14 @@ export default async function StaffSesionesPage() {
       />
     )
   }
+
+  const resolvedSearchParams = await searchParams
+  const estadoFiltro = resolvedSearchParams?.estado ?? 'operativas'
+  const estadoFiltroActual = filtrosSesiones.some(
+    (filtro) => filtro.value === estadoFiltro
+  )
+    ? estadoFiltro
+    : 'operativas'
 
   const supabase = await createServerSupabaseClient()
 
@@ -161,6 +204,9 @@ export default async function StaffSesionesPage() {
 
     return a.hora_inicio.localeCompare(b.hora_inicio)
   })
+  const sesionesFiltradas = sesionesOrdenadas.filter((sesion) =>
+    sesionPasaFiltro(sesion.estado, estadoFiltroActual)
+  )
 
   const sesionesConInscripciones = sesiones.filter(
     (sesion) =>
@@ -224,9 +270,35 @@ export default async function StaffSesionesPage() {
         </div>
       </section>
 
-      {sesiones.length === 0 ? (
+      <div className="mb-6 flex flex-wrap gap-2">
+        {filtrosSesiones.map((filtro) => {
+          const activo = estadoFiltroActual === filtro.value
+
+          return (
+            <Link
+              key={filtro.value}
+              href={
+                filtro.value === 'operativas'
+                  ? '/staff/sesiones'
+                  : `/staff/sesiones?estado=${filtro.value}`
+              }
+              className={
+                activo
+                  ? 'inline-flex rounded-full border border-black bg-black px-3 py-2 text-sm font-medium text-white'
+                  : 'inline-flex rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50'
+              }
+            >
+              {filtro.label}
+            </Link>
+          )
+        })}
+      </div>
+
+      {sesionesFiltradas.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 bg-white px-6 py-10 text-center">
-          <p className="text-sm text-gray-500">No hay sesiones disponibles.</p>
+          <p className="text-sm text-gray-500">
+            No hay sesiones para el filtro seleccionado.
+          </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -254,7 +326,7 @@ export default async function StaffSesionesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {sesionesOrdenadas.map((sesion) => {
+              {sesionesFiltradas.map((sesion) => {
                 const detalleHref = `/staff/sesiones/${sesion.id}`
                 const estadoVisual = getEstadoVisual(sesion.estado)
                 const primaryAction = getSesionPrimaryAction(sesion)
