@@ -13,7 +13,13 @@ import {
 } from './actions'
 import { PositionEditor } from '@/components/staff/PositionEditor'
 import { evaluateAssignmentRules } from '@/lib/crew/assignment-rules'
-import { formatSidePreference } from '@/lib/crew/formatters'
+import {
+  formatNullableText,
+  formatProfileName,
+  formatSidePreference,
+  formatWeightDisplay,
+  hasIncompleteProfileData,
+} from '@/lib/crew/formatters'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -135,6 +141,9 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
 
   const inscritosPendientes = inscritosElegibles.filter(
     (item: any) => !asignacionPorInscripcion.has(item.id)
+  )
+  const hayPerfilesIncompletos = inscritosElegibles.some((item: any) =>
+    hasIncompleteProfileData(item.profile)
   )
   const hayIncoherenciasPlanificacion =
     inscritosPendientes.length > 0 || asignacionesIncompletas.length > 0
@@ -291,6 +300,12 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
             </div>
           )}
 
+          {hayPerfilesIncompletos && (
+            <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+              Hay personas con datos incompletos (peso o perfil).
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-3">
             <form
               action={async () => {
@@ -347,7 +362,9 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Sede</p>
-            <p className="mt-1 text-sm text-gray-900">{sesion.sede ?? '—'}</p>
+            <p className="mt-1 text-sm text-gray-900">
+              {formatNullableText(sesion.sede, 'Sin sede')}
+            </p>
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Estado</p>
@@ -396,9 +413,7 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                     <tr key={item.id}>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         <div>
-                          {item.profile
-                            ? `${item.profile.nombre} ${item.profile.apellidos}`
-                            : '—'}
+                          {formatProfileName(item.profile)}
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2">
                           {item.lado_solicitado && (
@@ -429,16 +444,16 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
-                        {item.profile?.peso_kg ?? '—'}
+                        {formatWeightDisplay(item.profile?.peso_kg)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
                         {formatSidePreference(item.lado_solicitado)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
-                        {item.prep_rec ?? '—'}
+                        {formatNullableText(item.prep_rec, 'Sin preferencia')}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
-                        {item.tipo_hueco ?? '—'}
+                        {formatNullableText(item.tipo_hueco, 'Sin hueco indicado')}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
                         <div className="flex flex-wrap gap-2">
@@ -454,7 +469,7 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                                 className="rounded-lg border border-gray-200 bg-gray-50 p-2"
                               >
                                 <div className="mb-2 text-xs font-medium text-gray-600">
-                                  {barco.nombre_visible ?? 'Barco'}
+                                  {formatNullableText(barco.nombre_visible, 'Barco sin nombre')}
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                   <form
@@ -582,12 +597,8 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
 
                     if (ladoA !== ladoB) return ladoA - ladoB
 
-                    const nombreA = a.profile
-                      ? `${a.profile.nombre} ${a.profile.apellidos}`
-                      : ''
-                    const nombreB = b.profile
-                      ? `${b.profile.nombre} ${b.profile.apellidos}`
-                      : ''
+                    const nombreA = formatProfileName(a.profile)
+                    const nombreB = formatProfileName(b.profile)
 
                     return nombreA.localeCompare(nombreB)
                   })
@@ -641,10 +652,13 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-gray-900">
-                          {barco.nombre_visible ?? 'Barco sin nombre'}
+                          {formatNullableText(barco.nombre_visible, 'Barco sin nombre')}
                         </p>
                         <p className="mt-1 text-sm text-gray-600">
-                          {barco.tipo_barco} · Turno {barco.turno ?? '—'}
+                          {formatNullableText(barco.tipo_barco, 'Tipo no disponible')} · Turno {formatNullableText(
+                            barco.turno != null ? String(barco.turno) : null,
+                            'Sin turno'
+                          )}
                         </p>
                       </div>
 
@@ -683,12 +697,10 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                           {tamborAsignado ? (
                             <div className="mt-2 rounded-md border border-amber-200 bg-white px-3 py-2 text-sm text-gray-800">
                               <div className="font-medium">
-                                {tamborAsignado.profile
-                                  ? `${tamborAsignado.profile.nombre} ${tamborAsignado.profile.apellidos}`
-                                  : 'Palista'}
+                                {formatProfileName(tamborAsignado.profile)}
                               </div>
                               <div className="mt-1 text-xs text-gray-500">
-                                {tamborAsignado.profile?.peso_kg ?? '—'} kg
+                                {formatWeightDisplay(tamborAsignado.profile?.peso_kg)}
                               </div>
                             </div>
                           ) : (
@@ -705,12 +717,10 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                           {timonelAsignado ? (
                             <div className="mt-2 rounded-md border border-sky-200 bg-white px-3 py-2 text-sm text-gray-800">
                               <div className="font-medium">
-                                {timonelAsignado.profile
-                                  ? `${timonelAsignado.profile.nombre} ${timonelAsignado.profile.apellidos}`
-                                  : 'Palista'}
+                                {formatProfileName(timonelAsignado.profile)}
                               </div>
                               <div className="mt-1 text-xs text-gray-500">
-                                {timonelAsignado.profile?.peso_kg ?? '—'} kg
+                                {formatWeightDisplay(timonelAsignado.profile?.peso_kg)}
                               </div>
                             </div>
                           ) : (
@@ -753,12 +763,10 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                               {fila.izquierda ? (
                                 <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800">
                                   <div className="font-medium">
-                                    {fila.izquierda.profile
-                                      ? `${fila.izquierda.profile.nombre} ${fila.izquierda.profile.apellidos}`
-                                      : 'Palista'}
+                                    {formatProfileName(fila.izquierda.profile)}
                                   </div>
                                   <div className="mt-1 text-xs text-gray-500">
-                                    {fila.izquierda.profile?.peso_kg ?? '—'} kg
+                                    {formatWeightDisplay(fila.izquierda.profile?.peso_kg)}
                                   </div>
                                 </div>
                               ) : (
@@ -772,12 +780,10 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                               {fila.derecha ? (
                                 <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800">
                                   <div className="font-medium">
-                                    {fila.derecha.profile
-                                      ? `${fila.derecha.profile.nombre} ${fila.derecha.profile.apellidos}`
-                                      : 'Palista'}
+                                    {formatProfileName(fila.derecha.profile)}
                                   </div>
                                   <div className="mt-1 text-xs text-gray-500">
-                                    {fila.derecha.profile?.peso_kg ?? '—'} kg
+                                    {formatWeightDisplay(fila.derecha.profile?.peso_kg)}
                                   </div>
                                 </div>
                               ) : (
@@ -823,12 +829,10 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                 <div>
                                   <p className="font-medium text-gray-900">
-                                    {item.profile
-                                      ? `${item.profile.nombre} ${item.profile.apellidos}`
-                                      : 'Palista sin perfil'}
+                                    {formatProfileName(item.profile)}
                                   </p>
                                   <p className="mt-1 text-sm text-gray-600">
-                                    {item.profile?.peso_kg ?? '—'} kg · preferencia lado: {formatSidePreference(item.lado_solicitado)}
+                                    {formatWeightDisplay(item.profile?.peso_kg)} · preferencia lado: {formatSidePreference(item.lado_solicitado)}
                                   </p>
                                   <div className="mt-2 flex flex-wrap gap-2">
                                     <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">

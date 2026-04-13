@@ -9,7 +9,13 @@ import {
 } from './actions'
 import { requireRole } from '@/lib/auth/require-role'
 import { AccessDenied } from '@/components/auth/AccessDenied'
-import { formatSidePreference } from '@/lib/crew/formatters'
+import {
+  formatNullableText,
+  formatProfileName,
+  formatSidePreference,
+  formatWeightDisplay,
+  hasIncompleteProfileData,
+} from '@/lib/crew/formatters'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -37,8 +43,8 @@ type Inscripcion = {
 
 type Profile = {
   id: string
-  nombre: string
-  apellidos: string
+  nombre: string | null
+  apellidos: string | null
   peso_kg: number | null
 }
 
@@ -234,6 +240,9 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
   const inscripcionesCanceladas = inscripcionesConPerfil.filter(
     (item) => item.estado === 'cancelado'
   )
+  const hayPerfilesIncompletos = inscripcionesConPerfil.some((item) =>
+    hasIncompleteProfileData(item.profile)
+  )
 
   const puedeGestionarInscripciones =
     sesion.estado === 'abierta_inscripcion' ||
@@ -302,7 +311,9 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
               Sede
             </p>
-            <p className="mt-1 text-sm text-gray-900">{sesion.sede ?? '—'}</p>
+            <p className="mt-1 text-sm text-gray-900">
+              {formatNullableText(sesion.sede, 'Sin sede')}
+            </p>
           </div>
 
           <div>
@@ -316,7 +327,9 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
               Notas
             </p>
-            <p className="mt-1 text-sm text-gray-900">{sesion.notas_staff ?? '—'}</p>
+            <p className="mt-1 text-sm text-gray-900">
+              {formatNullableText(sesion.notas_staff, 'Sin notas internas')}
+            </p>
           </div>
         </div>
       </section>
@@ -404,6 +417,12 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
           </div>
         )}
 
+        {hayPerfilesIncompletos && (
+          <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+            Hay personas con datos incompletos (peso o perfil).
+          </div>
+        )}
+
         {inscripcionesError || profilesErrorMessage ? (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             Error cargando inscripciones o perfiles:{' '}
@@ -447,12 +466,10 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                 {inscripcionesActivas.map((inscripcion) => (
                   <tr key={inscripcion.id}>
                     <td className="px-4 py-3 text-sm text-gray-900">
-                      {inscripcion.profile
-                        ? `${inscripcion.profile.nombre} ${inscripcion.profile.apellidos}`
-                        : '—'}
+                      {formatProfileName(inscripcion.profile)}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
-                      {inscripcion.profile?.peso_kg ?? '—'}
+                      {formatWeightDisplay(inscripcion.profile?.peso_kg)}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
                       {inscripcion.estado}
@@ -461,10 +478,10 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                       {formatSidePreference(inscripcion.lado_solicitado)}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
-                      {inscripcion.prep_rec ?? '—'}
+                      {formatNullableText(inscripcion.prep_rec, 'Sin preferencia')}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
-                      {inscripcion.tipo_hueco ?? '—'}
+                      {formatNullableText(inscripcion.tipo_hueco, 'Sin hueco indicado')}
                     </td>
 
                     {puedeGestionarInscripciones && (
@@ -580,12 +597,10 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                   {inscripcionesCanceladas.map((inscripcion) => (
                     <tr key={inscripcion.id}>
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {inscripcion.profile
-                          ? `${inscripcion.profile.nombre} ${inscripcion.profile.apellidos}`
-                          : '—'}
+                        {formatProfileName(inscripcion.profile)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
-                        {inscripcion.profile?.peso_kg ?? '—'}
+                        {formatWeightDisplay(inscripcion.profile?.peso_kg)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
                         {inscripcion.estado}
@@ -594,10 +609,10 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                         {formatSidePreference(inscripcion.lado_solicitado)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
-                        {inscripcion.prep_rec ?? '—'}
+                        {formatNullableText(inscripcion.prep_rec, 'Sin preferencia')}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
-                        {inscripcion.tipo_hueco ?? '—'}
+                        {formatNullableText(inscripcion.tipo_hueco, 'Sin hueco indicado')}
                       </td>
                     </tr>
                   ))}

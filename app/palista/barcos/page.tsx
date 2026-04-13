@@ -4,6 +4,11 @@ import { requireRole } from '@/lib/auth/require-role'
 import { AccessDenied } from '@/components/auth/AccessDenied'
 import { AppHeader } from '@/components/navigation/AppHeader'
 import { getBoatLayoutConfig } from '@/lib/boats/layout'
+import {
+  formatNullableText,
+  formatProfileName,
+  formatWeightDisplay,
+} from '@/lib/crew/formatters'
 
 type Sesion = {
   id: string
@@ -179,7 +184,7 @@ export default async function PalistaBarcosPage() {
   // 6. Asignaciones de esos barcos
   const { data: asignaciones, error: asignacionesError } = await supabase
     .from('asignaciones_barco')
-    .select('id, barco_id, inscripcion_id, banco, lado')
+    .select('id, barco_id, inscripcion_id, tipo_posicion, banco, lado')
     .in('barco_id', barcoIds)
 
   if (asignacionesError) {
@@ -294,44 +299,58 @@ export default async function PalistaBarcosPage() {
                 </div>
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Sede</p>
-                  <p className="mt-1 text-sm text-gray-900">{sesion.sede ?? '—'}</p>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {formatNullableText(sesion.sede, 'Sin sede')}
+                  </p>
                 </div>
               </div>
 
               <div className="grid gap-6 lg:grid-cols-2">
                 {barcosSesion.map((barco: any) => {
-                  const asignados = [...(asignadosPorBarco.get(barco.id) ?? [])].sort((a: any, b: any) => {
-                    const bancoA = a.banco ?? Number.MAX_SAFE_INTEGER
-                    const bancoB = b.banco ?? Number.MAX_SAFE_INTEGER
+                  const asignadosDelBarco = [...(asignadosPorBarco.get(barco.id) ?? [])]
+                  const tamborAsignado =
+                    asignadosDelBarco.find(
+                      (item: any) => item.tipo_posicion === 'tambor'
+                    ) ?? null
+                  const timonelAsignado =
+                    asignadosDelBarco.find(
+                      (item: any) => item.tipo_posicion === 'timonel'
+                    ) ?? null
 
-                    if (bancoA !== bancoB) return bancoA - bancoB
+                  const asignadosEnBancos = asignadosDelBarco
+                    .filter(
+                      (item: any) =>
+                        item.tipo_posicion !== 'tambor' &&
+                        item.tipo_posicion !== 'timonel'
+                    )
+                    .sort((a: any, b: any) => {
+                      const bancoA = a.banco ?? Number.MAX_SAFE_INTEGER
+                      const bancoB = b.banco ?? Number.MAX_SAFE_INTEGER
 
-                    const ladoOrden = (lado?: string | null) => {
-                      if (lado === 'izquierda') return 0
-                      if (lado === 'derecha') return 1
-                      return 2
-                    }
+                      if (bancoA !== bancoB) return bancoA - bancoB
 
-                    const ladoA = ladoOrden(a.lado)
-                    const ladoB = ladoOrden(b.lado)
+                      const ladoOrden = (lado?: string | null) => {
+                        if (lado === 'izquierda') return 0
+                        if (lado === 'derecha') return 1
+                        return 2
+                      }
 
-                    if (ladoA !== ladoB) return ladoA - ladoB
+                      const ladoA = ladoOrden(a.lado)
+                      const ladoB = ladoOrden(b.lado)
 
-                    const nombreA = a.profile
-                      ? `${a.profile.nombre} ${a.profile.apellidos}`
-                      : ''
-                    const nombreB = b.profile
-                      ? `${b.profile.nombre} ${b.profile.apellidos}`
-                      : ''
+                      if (ladoA !== ladoB) return ladoA - ladoB
 
-                    return nombreA.localeCompare(nombreB)
-                  })
+                      const nombreA = formatProfileName(a.profile)
+                      const nombreB = formatProfileName(b.profile)
+
+                      return nombreA.localeCompare(nombreB)
+                    })
 
                   const layout = getBoatLayoutConfig(barco.tipo_barco)
 
                   const maxBancoAsignado =
-                    asignados.length > 0
-                      ? Math.max(...asignados.map((item: any) => item.banco ?? 0))
+                    asignadosEnBancos.length > 0
+                      ? Math.max(...asignadosEnBancos.map((item: any) => item.banco ?? 0))
                       : 0
 
                   const totalBancos = Math.max(layout.maxBancos, maxBancoAsignado)
@@ -340,12 +359,12 @@ export default async function PalistaBarcosPage() {
                     const banco = index + 1
 
                     const izquierda =
-                      asignados.find(
+                      asignadosEnBancos.find(
                         (item: any) => item.banco === banco && item.lado === 'izquierda'
                       ) ?? null
 
                     const derecha =
-                      asignados.find(
+                      asignadosEnBancos.find(
                         (item: any) => item.banco === banco && item.lado === 'derecha'
                       ) ?? null
 
@@ -360,16 +379,75 @@ export default async function PalistaBarcosPage() {
                       <div className="mb-4 flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-gray-900">
-                            {barco.nombre_visible ?? 'Barco sin nombre'}
+                            {formatNullableText(barco.nombre_visible, 'Barco sin nombre')}
                           </p>
                           <p className="mt-1 text-sm text-gray-600">
-                            {barco.tipo_barco} · Turno {barco.turno ?? '—'}
+                            {formatNullableText(barco.tipo_barco, 'Tipo no disponible')} · Turno {formatNullableText(
+                              barco.turno != null ? String(barco.turno) : null,
+                              'Sin turno'
+                            )}
                           </p>
                         </div>
 
                         <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600">
-                          {barco.estado}
+                          {formatNullableText(barco.estado, 'Estado no disponible')}
                         </span>
+                      </div>
+
+                      <div className="mb-4 grid gap-3 md:grid-cols-2">
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                          <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+                            Tambor
+                          </p>
+                          {tamborAsignado ? (
+                            <div
+                              className={`mt-2 rounded-md border px-3 py-2 text-sm ${
+                                tamborAsignado.esYo
+                                  ? 'border-green-300 bg-green-50 text-green-900'
+                                  : 'border-amber-200 bg-white text-gray-800'
+                              }`}
+                            >
+                              <div className="font-medium">
+                                {formatProfileName(tamborAsignado.profile)}
+                                {tamborAsignado.esYo ? ' · Tú' : ''}
+                              </div>
+                              <div className="mt-1 text-xs text-gray-500">
+                                {formatWeightDisplay(tamborAsignado.profile?.peso_kg)}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-2 rounded-md border border-dashed border-amber-200 bg-white px-3 py-2 text-sm text-amber-700">
+                              Vacío
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
+                          <p className="text-xs font-medium uppercase tracking-wide text-sky-700">
+                            Timonel
+                          </p>
+                          {timonelAsignado ? (
+                            <div
+                              className={`mt-2 rounded-md border px-3 py-2 text-sm ${
+                                timonelAsignado.esYo
+                                  ? 'border-green-300 bg-green-50 text-green-900'
+                                  : 'border-sky-200 bg-white text-gray-800'
+                              }`}
+                            >
+                              <div className="font-medium">
+                                {formatProfileName(timonelAsignado.profile)}
+                                {timonelAsignado.esYo ? ' · Tú' : ''}
+                              </div>
+                              <div className="mt-1 text-xs text-gray-500">
+                                {formatWeightDisplay(timonelAsignado.profile?.peso_kg)}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-2 rounded-md border border-dashed border-sky-200 bg-white px-3 py-2 text-sm text-sky-700">
+                              Vacío
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -404,13 +482,11 @@ export default async function PalistaBarcosPage() {
                                   }`}
                                 >
                                   <div className="font-medium">
-                                    {fila.izquierda.profile
-                                      ? `${fila.izquierda.profile.nombre} ${fila.izquierda.profile.apellidos}`
-                                      : 'Palista'}
+                                    {formatProfileName(fila.izquierda.profile)}
                                     {fila.izquierda.esYo ? ' · Tú' : ''}
                                   </div>
                                   <div className="mt-1 text-xs text-gray-500">
-                                    {fila.izquierda.profile?.peso_kg ?? '—'} kg
+                                    {formatWeightDisplay(fila.izquierda.profile?.peso_kg)}
                                   </div>
                                 </div>
                               ) : (
@@ -430,13 +506,11 @@ export default async function PalistaBarcosPage() {
                                   }`}
                                 >
                                   <div className="font-medium">
-                                    {fila.derecha.profile
-                                      ? `${fila.derecha.profile.nombre} ${fila.derecha.profile.apellidos}`
-                                      : 'Palista'}
+                                    {formatProfileName(fila.derecha.profile)}
                                     {fila.derecha.esYo ? ' · Tú' : ''}
                                   </div>
                                   <div className="mt-1 text-xs text-gray-500">
-                                    {fila.derecha.profile?.peso_kg ?? '—'} kg
+                                    {formatWeightDisplay(fila.derecha.profile?.peso_kg)}
                                   </div>
                                 </div>
                               ) : (
