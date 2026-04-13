@@ -104,6 +104,10 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
     sesion?.estado === 'publicada' ||
     (hayBarcos && barcos.every((barco) => barco.estado === 'publicado'))
   const sesionEnPlanificacion = sesion?.estado === 'en_planificacion'
+  const puedeGestionarBarcos =
+    sesion?.estado === 'abierta_inscripcion' ||
+    sesion?.estado === 'cerrada_inscripcion' ||
+    sesion?.estado === 'en_planificacion'
 
   const { data: asignaciones, error: asignacionesError } = barcoIds.length
     ? await supabase
@@ -195,7 +199,20 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
     )
   }
 
-  const puedeGestionarBarcos = sesion.estado === 'en_planificacion'
+  const avisoPlanificacion =
+    sesion.estado === 'abierta_inscripcion'
+      ? {
+          title: 'Planificación provisional',
+          message:
+            'Se pueden preparar barcos aunque la inscripción siga abierta, pero todavía no se puede publicar la planificación.',
+        }
+      : sesion.estado === 'cerrada_inscripcion'
+        ? {
+            title: 'Planificación previa',
+            message:
+              'Ya se pueden cuadrar los barcos antes de pasar la sesión a planificación formal.',
+          }
+        : null
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10">
@@ -224,9 +241,16 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
         </div>
 
         <div className="flex flex-col items-stretch gap-3">
+          {avisoPlanificacion && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              <div className="font-medium">{avisoPlanificacion.title}</div>
+              <div className="mt-1">{avisoPlanificacion.message}</div>
+            </div>
+          )}
+
           {!puedeGestionarBarcos && (
             <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-              Los barcos solo se pueden gestionar cuando la sesión está en planificación.
+              Los barcos solo se pueden gestionar cuando la sesión está en inscripción abierta, inscripción cerrada o planificación.
             </div>
           )}
 
