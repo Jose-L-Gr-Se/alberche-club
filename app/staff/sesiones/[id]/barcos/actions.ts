@@ -6,6 +6,18 @@ import { requireRole } from '@/lib/auth/require-role'
 import { getBoatLayoutConfig } from '@/lib/boats/layout'
 import { evaluateAssignmentRules } from '@/lib/crew/assignment-rules'
 
+export type TipoPosicionBarco = 'banco' | 'tambor' | 'timonel'
+
+function esPosicionEspecial(
+  tipoPosicion: TipoPosicionBarco
+): tipoPosicion is Exclude<TipoPosicionBarco, 'banco'> {
+  return tipoPosicion === 'tambor' || tipoPosicion === 'timonel'
+}
+
+function getNombrePosicion(tipoPosicion: Exclude<TipoPosicionBarco, 'banco'>) {
+  return tipoPosicion === 'tambor' ? 'Tambor' : 'Timonel'
+}
+
 async function validarSesionParaGestionBarcos(sesionId: string) {
   const supabase = await createServerSupabaseClient()
 
@@ -171,7 +183,8 @@ export async function eliminarBarco(sesionId: string, barcoId: string) {
 export async function asignarInscripcionABarco(
   sesionId: string,
   inscripcionId: string,
-  barcoId: string
+  barcoId: string,
+  tipoPosicion: TipoPosicionBarco = 'banco'
 ) {
   await requireRole(['staff'])
   const stateCheck = await validarSesionParaGestionBarcos(sesionId)
@@ -211,12 +224,39 @@ export async function asignarInscripcionABarco(
     throw new Error('El barco no pertenece a esta sesión')
   }
 
+  if (esPosicionEspecial(tipoPosicion)) {
+    const { data: ocupada, error: ocupadaError } = await supabase
+      .from('asignaciones_barco')
+      .select('id, inscripcion_id')
+      .eq('barco_id', barcoId)
+      .eq('tipo_posicion', tipoPosicion)
+      .neq('inscripcion_id', inscripcionId)
+      .maybeSingle()
+
+    if (ocupadaError) {
+      throw new Error(
+        `No se pudo comprobar la posición ${tipoPosicion}: ${ocupadaError.message}`
+      )
+    }
+
+    if (ocupada) {
+      return {
+        ok: false as const,
+        reason: 'special_position_taken' as const,
+        message: `El puesto de ${getNombrePosicion(tipoPosicion)} ya está ocupado en este barco.`,
+      }
+    }
+  }
+
   const { error } = await supabase
     .from('asignaciones_barco')
     .upsert(
       {
         inscripcion_id: inscripcionId,
         barco_id: barcoId,
+        tipo_posicion: tipoPosicion,
+        banco: null,
+        lado: null,
         updated_at: new Date().toISOString(),
       },
       {
@@ -270,6 +310,7 @@ export async function desasignarInscripcionDeBarco(
 export async function actualizarPosicionAsignacion(
   sesionId: string,
   inscripcionId: string,
+  tipoPosicion: TipoPosicionBarco,
   banco: number | null,
   lado: 'izquierda' | 'derecha' | null
 ) {
@@ -279,12 +320,8 @@ export async function actualizarPosicionAsignacion(
 
   const supabase = await createServerSupabaseClient()
 
-  if (banco !== null && (!Number.isInteger(banco) || banco < 1)) {
-    return { ok: false as const, reason: 'invalid_bank' as const }
-  }
-
-  if (lado !== null && lado !== 'izquierda' && lado !== 'derecha') {
-    return { ok: false as const, reason: 'invalid_side' as const }
+  if (!['banco', 'tambor', 'timonel'].includes(tipoPosicion)) {
+    return { ok: false as const, reason: 'invalid_position_type' as const }
   }
 
   const { data: inscripcion, error: inscripcionError } = await supabase
@@ -305,34 +342,42 @@ export async function actualizarPosicionAsignacion(
     return { ok: false as const, reason: 'invalid_session' as const }
   }
 
-  const { data: sesion, error: sesionError } = await supabase
-    .from('sesiones')
-    .select('id, tipo_entreno')
-    .eq('id', sesionId)
+  const { data: asignacionActual, error: asignacionActualError } = await supabase
+    .from('asignaciones_barco')
+    .select('id, barco_id')
+    .eq('inscripcion_id', inscripcionId)
     .single()
 
-  if (sesionError || !sesion) {
+  if (asignacionActualError) {
     return {
       ok: false as const,
       reason: 'unknown' as const,
-      message: `No se pudo cargar la sesión: ${sesionError?.message ?? 'sin datos'}`,
+      message: `No se pudo cargar la asignación actual: ${asignacionActualError.message}`,
     }
   }
 
   let rules: ReturnType<typeof evaluateAssignmentRules> | undefined
 
-  if (banco !== null && lado !== null) {
-    const { data: asignacionActual, error: asignacionActualError } = await supabase
-      .from('asignaciones_barco')
-      .select('id, barco_id')
-      .eq('inscripcion_id', inscripcionId)
+  if (tipoPosicion === 'banco') {
+    if (banco !== null && (!Number.isInteger(banco) || banco < 1)) {
+      return { ok: false as const, reason: 'invalid_bank' as const }
+    }
+
+    if (lado !== null && lado !== 'izquierda' && lado !== 'derecha') {
+      return { ok: false as const, reason: 'invalid_side' as const }
+    }
+
+    const { data: sesion, error: sesionError } = await supabase
+      .from('sesiones')
+      .select('id, tipo_entreno')
+      .eq('id', sesionId)
       .single()
 
-    if (asignacionActualError) {
+    if (sesionError || !sesion) {
       return {
         ok: false as const,
         reason: 'unknown' as const,
-        message: `No se pudo cargar la asignación actual: ${asignacionActualError.message}`,
+        message: `No se pudo cargar la sesión: ${sesionError?.message ?? 'sin datos'}`,
       }
     }
 
@@ -364,6 +409,7 @@ export async function actualizarPosicionAsignacion(
       .from('asignaciones_barco')
       .select('id')
       .eq('barco_id', asignacionActual.barco_id)
+      .eq('tipo_posicion', 'banco')
       .eq('banco', banco)
       .eq('lado', lado)
       .neq('inscripcion_id', inscripcionId)
@@ -403,11 +449,39 @@ export async function actualizarPosicionAsignacion(
         issues: rules,
       }
     }
+  } else {
+    const { data: colisionEspecial, error: colisionEspecialError } = await supabase
+      .from('asignaciones_barco')
+      .select('id')
+      .eq('barco_id', asignacionActual.barco_id)
+      .eq('tipo_posicion', tipoPosicion)
+      .neq('inscripcion_id', inscripcionId)
+      .maybeSingle()
+
+    if (colisionEspecialError) {
+      return {
+        ok: false as const,
+        reason: 'unknown' as const,
+        message: `No se pudo comprobar la ocupación del puesto especial: ${colisionEspecialError.message}`,
+      }
+    }
+
+    if (colisionEspecial) {
+      return {
+        ok: false as const,
+        reason: 'special_position_taken' as const,
+        message: `El puesto de ${getNombrePosicion(tipoPosicion)} ya está ocupado en este barco.`,
+      }
+    }
+
+    banco = null
+    lado = null
   }
 
   const { error } = await supabase
     .from('asignaciones_barco')
     .update({
+      tipo_posicion: tipoPosicion,
       banco,
       lado,
       updated_at: new Date().toISOString(),
@@ -520,7 +594,7 @@ export async function publicarPlanificacionSesion(sesionId: string) {
 
   const { data: asignaciones, error: asignacionesError } = await supabase
     .from('asignaciones_barco')
-    .select('id, inscripcion_id, barco_id, banco, lado')
+    .select('id, inscripcion_id, barco_id, tipo_posicion, banco, lado')
     .in('barco_id', barcoIds)
 
   if (asignacionesError) {
@@ -551,7 +625,7 @@ export async function publicarPlanificacionSesion(sesionId: string) {
   }
 
   const asignacionesIncompletas = (asignaciones ?? []).filter(
-    (item) => item.banco === null || item.lado === null
+    (item) => item.tipo_posicion === 'banco' && (item.banco === null || item.lado === null)
   )
 
   if (asignacionesIncompletas.length > 0) {

@@ -3,9 +3,12 @@
 import { useState, useTransition } from 'react'
 import { actualizarPosicionAsignacion } from '@/app/staff/sesiones/[id]/barcos/actions'
 
+type TipoPosicionBarco = 'banco' | 'tambor' | 'timonel'
+
 type Props = {
   sesionId: string
   inscripcionId: string
+  defaultTipoPosicion: TipoPosicionBarco
   defaultBanco: number | null
   defaultLado: 'izquierda' | 'derecha' | null
   disabled?: boolean
@@ -14,16 +17,20 @@ type Props = {
 export function PositionEditor({
   sesionId,
   inscripcionId,
+  defaultTipoPosicion,
   defaultBanco,
   defaultLado,
   disabled = false,
 }: Props) {
+  const [tipoPosicion, setTipoPosicion] = useState<TipoPosicionBarco>(defaultTipoPosicion)
   const [banco, setBanco] = useState<string>(
     defaultBanco !== null ? String(defaultBanco) : ''
   )
   const [lado, setLado] = useState<string>(defaultLado ?? '')
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  const esBanco = tipoPosicion === 'banco'
 
   const handleSubmit = () => {
     if (disabled) return
@@ -40,6 +47,7 @@ export function PositionEditor({
       const result = await actualizarPosicionAsignacion(
         sesionId,
         inscripcionId,
+        tipoPosicion,
         bancoParsed,
         ladoParsed
       )
@@ -72,6 +80,30 @@ export function PositionEditor({
       <div className="flex flex-wrap items-end gap-2">
         <div>
           <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+            Posición
+          </label>
+          <select
+            value={tipoPosicion}
+            onChange={(e) => {
+              const nextTipo = e.target.value as TipoPosicionBarco
+              setTipoPosicion(nextTipo)
+
+              if (nextTipo !== 'banco') {
+                setBanco('')
+                setLado('')
+              }
+            }}
+            disabled={disabled}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
+          >
+            <option value="banco">Banco</option>
+            <option value="tambor">Tambor</option>
+            <option value="timonel">Timonel</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
             Banco
           </label>
           <input
@@ -79,7 +111,7 @@ export function PositionEditor({
             min={1}
             value={banco}
             onChange={(e) => setBanco(e.target.value)}
-            disabled={disabled}
+            disabled={disabled || !esBanco}
             className="w-20 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
           />
         </div>
@@ -91,7 +123,7 @@ export function PositionEditor({
           <select
             value={lado}
             onChange={(e) => setLado(e.target.value)}
-            disabled={disabled}
+            disabled={disabled || !esBanco}
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
           >
             <option value="">Sin definir</option>
@@ -109,6 +141,12 @@ export function PositionEditor({
           {isPending ? 'Guardando...' : 'Guardar posición'}
         </button>
       </div>
+
+      {!esBanco ? (
+        <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          Las posiciones de tambor y timonel no usan banco ni lado.
+        </div>
+      ) : null}
 
       {message ? (
         <div

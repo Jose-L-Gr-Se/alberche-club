@@ -19,6 +19,14 @@ type PageProps = {
   params: Promise<{ id: string }>
 }
 
+type TipoPosicionBarco = 'banco' | 'tambor' | 'timonel'
+
+function getTipoPosicionLabel(tipoPosicion: TipoPosicionBarco) {
+  if (tipoPosicion === 'tambor') return 'Tambor'
+  if (tipoPosicion === 'timonel') return 'Timonel'
+  return 'Banco'
+}
+
 export default async function StaffSesionBarcosPage({ params }: PageProps) {
   try {
     await requireRole(['staff'])
@@ -112,13 +120,13 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
   const { data: asignaciones, error: asignacionesError } = barcoIds.length
     ? await supabase
         .from('asignaciones_barco')
-        .select('id, barco_id, inscripcion_id, banco, lado')
+        .select('id, barco_id, inscripcion_id, tipo_posicion, banco, lado')
         .in('barco_id', barcoIds)
     : { data: [], error: null }
 
   const asignacionesList = asignaciones ?? []
   const asignacionesIncompletas = asignacionesList.filter(
-    (item) => item.banco == null || item.lado == null
+    (item) => item.tipo_posicion === 'banco' && (item.banco == null || item.lado == null)
   )
 
   const asignacionPorInscripcion = new Map(
@@ -178,6 +186,24 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
     })
     asignadosPorBarco.set(asignacion.barco_id, actuales)
   }
+
+  const ocupacionEspecialPorBarco = new Map(
+    (barcos ?? []).map((barco) => {
+      const asignados = asignadosPorBarco.get(barco.id) ?? []
+
+      return [
+        barco.id,
+        {
+          tambor: asignados.some(
+            (item: any) => item.asignacion?.tipo_posicion === 'tambor'
+          ),
+          timonel: asignados.some(
+            (item: any) => item.asignacion?.tipo_posicion === 'timonel'
+          ),
+        },
+      ]
+    })
+  )
 
   if (sesionError) {
     return (
@@ -416,23 +442,84 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
                         <div className="flex flex-wrap gap-2">
-                          {barcos.map((barco) => (
-                            <form
-                              key={barco.id}
-                              action={async () => {
-                                'use server'
-                                await asignarInscripcionABarco(id, item.id, barco.id)
-                              }}
-                            >
-                              <button
-                                type="submit"
-                                disabled={!puedeGestionarBarcos}
-                                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          {barcos.map((barco) => {
+                            const ocupacionEspecial = ocupacionEspecialPorBarco.get(barco.id) ?? {
+                              tambor: false,
+                              timonel: false,
+                            }
+
+                            return (
+                              <div
+                                key={barco.id}
+                                className="rounded-lg border border-gray-200 bg-gray-50 p-2"
                               >
-                                Asignar a {barco.nombre_visible ?? 'barco'}
-                              </button>
-                            </form>
-                          ))}
+                                <div className="mb-2 text-xs font-medium text-gray-600">
+                                  {barco.nombre_visible ?? 'Barco'}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <form
+                                    action={async () => {
+                                      'use server'
+                                      await asignarInscripcionABarco(
+                                        id,
+                                        item.id,
+                                        barco.id,
+                                        'banco'
+                                      )
+                                    }}
+                                  >
+                                    <button
+                                      type="submit"
+                                      disabled={!puedeGestionarBarcos}
+                                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      Banco
+                                    </button>
+                                  </form>
+
+                                  <form
+                                    action={async () => {
+                                      'use server'
+                                      await asignarInscripcionABarco(
+                                        id,
+                                        item.id,
+                                        barco.id,
+                                        'tambor'
+                                      )
+                                    }}
+                                  >
+                                    <button
+                                      type="submit"
+                                      disabled={!puedeGestionarBarcos || ocupacionEspecial.tambor}
+                                      className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      Tambor
+                                    </button>
+                                  </form>
+
+                                  <form
+                                    action={async () => {
+                                      'use server'
+                                      await asignarInscripcionABarco(
+                                        id,
+                                        item.id,
+                                        barco.id,
+                                        'timonel'
+                                      )
+                                    }}
+                                  >
+                                    <button
+                                      type="submit"
+                                      disabled={!puedeGestionarBarcos || ocupacionEspecial.timonel}
+                                      className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-medium text-sky-700 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      Timonel
+                                    </button>
+                                  </form>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       </td>
                     </tr>
@@ -462,39 +549,61 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
           ) : (
             <div className="grid gap-3">
               {barcos.map((barco) => {
-                const asignados = [...(asignadosPorBarco.get(barco.id) ?? [])].sort((a: any, b: any) => {
-                  const bancoA = a.asignacion?.banco ?? Number.MAX_SAFE_INTEGER
-                  const bancoB = b.asignacion?.banco ?? Number.MAX_SAFE_INTEGER
+                const asignadosDelBarco = [...(asignadosPorBarco.get(barco.id) ?? [])]
+                const tamborAsignado =
+                  asignadosDelBarco.find(
+                    (item: any) => item.asignacion?.tipo_posicion === 'tambor'
+                  ) ?? null
+                const timonelAsignado =
+                  asignadosDelBarco.find(
+                    (item: any) => item.asignacion?.tipo_posicion === 'timonel'
+                  ) ?? null
 
-                  if (bancoA !== bancoB) return bancoA - bancoB
+                const asignadosEnBancos = asignadosDelBarco
+                  .filter(
+                    (item: any) =>
+                      item.asignacion?.tipo_posicion !== 'tambor' &&
+                      item.asignacion?.tipo_posicion !== 'timonel'
+                  )
+                  .sort((a: any, b: any) => {
+                    const bancoA = a.asignacion?.banco ?? Number.MAX_SAFE_INTEGER
+                    const bancoB = b.asignacion?.banco ?? Number.MAX_SAFE_INTEGER
 
-                  const ladoOrden = (lado?: string | null) => {
-                    if (lado === 'izquierda') return 0
-                    if (lado === 'derecha') return 1
-                    return 2
-                  }
+                    if (bancoA !== bancoB) return bancoA - bancoB
 
-                  const ladoA = ladoOrden(a.asignacion?.lado)
-                  const ladoB = ladoOrden(b.asignacion?.lado)
+                    const ladoOrden = (lado?: string | null) => {
+                      if (lado === 'izquierda') return 0
+                      if (lado === 'derecha') return 1
+                      return 2
+                    }
 
-                  if (ladoA !== ladoB) return ladoA - ladoB
+                    const ladoA = ladoOrden(a.asignacion?.lado)
+                    const ladoB = ladoOrden(b.asignacion?.lado)
 
-                  const nombreA = a.profile
-                    ? `${a.profile.nombre} ${a.profile.apellidos}`
-                    : ''
-                  const nombreB = b.profile
-                    ? `${b.profile.nombre} ${b.profile.apellidos}`
-                    : ''
+                    if (ladoA !== ladoB) return ladoA - ladoB
 
-                  return nombreA.localeCompare(nombreB)
-                })
+                    const nombreA = a.profile
+                      ? `${a.profile.nombre} ${a.profile.apellidos}`
+                      : ''
+                    const nombreB = b.profile
+                      ? `${b.profile.nombre} ${b.profile.apellidos}`
+                      : ''
+
+                    return nombreA.localeCompare(nombreB)
+                  })
+
+                const asignados = [
+                  ...(tamborAsignado ? [tamborAsignado] : []),
+                  ...(timonelAsignado ? [timonelAsignado] : []),
+                  ...asignadosEnBancos,
+                ]
 
                 const layout = getBoatLayoutConfig(barco.tipo_barco)
 
                 const maxBancoAsignado =
-                  asignados.length > 0
+                  asignadosEnBancos.length > 0
                     ? Math.max(
-                        ...asignados.map((item: any) => item.asignacion?.banco ?? 0)
+                        ...asignadosEnBancos.map((item: any) => item.asignacion?.banco ?? 0)
                       )
                     : 0
 
@@ -504,14 +613,14 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                   const banco = index + 1
 
                   const izquierda =
-                    asignados.find(
+                    asignadosEnBancos.find(
                       (item: any) =>
                         item.asignacion?.banco === banco &&
                         item.asignacion?.lado === 'izquierda'
                     ) ?? null
 
                   const derecha =
-                    asignados.find(
+                    asignadosEnBancos.find(
                       (item: any) =>
                         item.asignacion?.banco === banco &&
                         item.asignacion?.lado === 'derecha'
@@ -558,6 +667,58 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                             Borrar barco
                           </button>
                         </form>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Posiciones especiales
+                      </p>
+
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                          <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+                            Tambor
+                          </p>
+                          {tamborAsignado ? (
+                            <div className="mt-2 rounded-md border border-amber-200 bg-white px-3 py-2 text-sm text-gray-800">
+                              <div className="font-medium">
+                                {tamborAsignado.profile
+                                  ? `${tamborAsignado.profile.nombre} ${tamborAsignado.profile.apellidos}`
+                                  : 'Palista'}
+                              </div>
+                              <div className="mt-1 text-xs text-gray-500">
+                                {tamborAsignado.profile?.peso_kg ?? '—'} kg
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-2 rounded-md border border-dashed border-amber-200 bg-white px-3 py-2 text-sm text-amber-700">
+                              Vacío
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
+                          <p className="text-xs font-medium uppercase tracking-wide text-sky-700">
+                            Timonel
+                          </p>
+                          {timonelAsignado ? (
+                            <div className="mt-2 rounded-md border border-sky-200 bg-white px-3 py-2 text-sm text-gray-800">
+                              <div className="font-medium">
+                                {timonelAsignado.profile
+                                  ? `${timonelAsignado.profile.nombre} ${timonelAsignado.profile.apellidos}`
+                                  : 'Palista'}
+                              </div>
+                              <div className="mt-1 text-xs text-gray-500">
+                                {timonelAsignado.profile?.peso_kg ?? '—'} kg
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-2 rounded-md border border-dashed border-sky-200 bg-white px-3 py-2 text-sm text-sky-700">
+                              Vacío
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -671,11 +832,20 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                                   </p>
                                   <div className="mt-2 flex flex-wrap gap-2">
                                     <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
-                                      {item.asignacion?.banco ? `Banco ${item.asignacion.banco}` : 'Sin banco'}
+                                      {getTipoPosicionLabel(
+                                        (item.asignacion?.tipo_posicion ?? 'banco') as TipoPosicionBarco
+                                      )}
                                     </span>
-                                    <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
-                                      {item.asignacion?.lado ?? 'Sin lado'}
-                                    </span>
+                                    {item.asignacion?.tipo_posicion === 'banco' && (
+                                      <>
+                                        <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
+                                          {item.asignacion?.banco ? `Banco ${item.asignacion.banco}` : 'Sin banco'}
+                                        </span>
+                                        <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
+                                          {item.asignacion?.lado ?? 'Sin lado'}
+                                        </span>
+                                      </>
+                                    )}
                                   </div>
                                   {assignmentRules.warnings.length > 0 && (
                                     <div className="mt-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-700">
@@ -688,6 +858,9 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                                   <PositionEditor
                                     sesionId={id}
                                     inscripcionId={item.id}
+                                    defaultTipoPosicion={
+                                      (item.asignacion?.tipo_posicion ?? 'banco') as TipoPosicionBarco
+                                    }
                                     defaultBanco={item.asignacion?.banco ?? null}
                                     defaultLado={item.asignacion?.lado ?? null}
                                     disabled={!puedeGestionarBarcos}
