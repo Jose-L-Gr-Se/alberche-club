@@ -15,6 +15,33 @@ type PageProps = {
   params: Promise<{ id: string }>
 }
 
+type Sesion = {
+  id: string
+  fecha: string
+  tipo_entreno: string
+  hora_inicio: string
+  sede: string | null
+  estado: string
+  notas_staff: string | null
+}
+
+type Inscripcion = {
+  id: string
+  profile_id: string
+  estado: string
+  lado_solicitado: string | null
+  prep_rec: string | null
+  tipo_hueco: string | null
+  observaciones: string | null
+}
+
+type Profile = {
+  id: string
+  nombre: string
+  apellidos: string
+  peso_kg: number | null
+}
+
 type CambioEstadoSesionOption = {
   label: string
   nextEstado:
@@ -123,6 +150,7 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
     if (error instanceof Error && error.message === 'UNAUTHENTICATED') {
       redirect('/login')
     }
+
     return (
       <AccessDenied
         title="Sin permisos"
@@ -138,45 +166,7 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
     .from('sesiones')
     .select('id, fecha, tipo_entreno, hora_inicio, sede, estado, notas_staff')
     .eq('id', id)
-    .single()
-
-  const { data: inscripciones, error: inscripcionesError } = await supabase
-    .from('inscripciones')
-    .select(`
-      id,
-      profile_id,
-      estado,
-      lado_solicitado,
-      prep_rec,
-      tipo_hueco,
-      observaciones
-    `)
-    .eq('sesion_id', id)
-    .order('created_at', { ascending: true })
-
-  const profileIds = (inscripciones ?? []).map((item) => item.profile_id)
-
-  const { data: profiles, error: profilesError } = profileIds.length
-    ? await supabase
-        .from('profiles')
-        .select('id, nombre, apellidos, peso_kg')
-        .in('id', profileIds)
-    : { data: [], error: null }
-
-  const profilesMap = new Map(
-    (profiles ?? []).map((profile) => [profile.id, profile])
-  )
-
-  const inscripcionesConPerfil = (inscripciones ?? []).map((inscripcion) => ({
-    ...inscripcion,
-    profile: profilesMap.get(inscripcion.profile_id) ?? null,
-  }))
-  const inscripcionesActivas = inscripcionesConPerfil.filter(
-    (item) => item.estado === 'inscrito' || item.estado === 'lista_espera'
-  )
-  const inscripcionesCanceladas = inscripcionesConPerfil.filter(
-    (item) => item.estado === 'cancelado'
-  )
+    .single<Sesion>()
 
   if (sesionError) {
     return (
@@ -198,9 +188,57 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
     )
   }
 
+  const { data: inscripciones, error: inscripcionesError } = await supabase
+    .from('inscripciones')
+    .select(`
+      id,
+      profile_id,
+      estado,
+      lado_solicitado,
+      prep_rec,
+      tipo_hueco,
+      observaciones
+    `)
+    .eq('sesion_id', id)
+    .order('created_at', { ascending: true })
+
+  const inscripcionesList = (inscripciones ?? []) as Inscripcion[]
+  const profileIds = inscripcionesList.map((item) => item.profile_id)
+
+  let profilesList: Profile[] = []
+  let profilesErrorMessage: string | null = null
+
+  if (profileIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, nombre, apellidos, peso_kg')
+      .in('id', profileIds)
+
+    profilesList = (profiles ?? []) as Profile[]
+    profilesErrorMessage = profilesError?.message ?? null
+  }
+
+  const profilesMap = new Map(
+    profilesList.map((profile) => [profile.id, profile])
+  )
+
+  const inscripcionesConPerfil = inscripcionesList.map((inscripcion) => ({
+    ...inscripcion,
+    profile: profilesMap.get(inscripcion.profile_id) ?? null,
+  }))
+
+  const inscripcionesActivas = inscripcionesConPerfil.filter(
+    (item) => item.estado === 'inscrito' || item.estado === 'lista_espera'
+  )
+
+  const inscripcionesCanceladas = inscripcionesConPerfil.filter(
+    (item) => item.estado === 'cancelado'
+  )
+
   const puedeGestionarInscripciones =
     sesion.estado === 'abierta_inscripcion' ||
     sesion.estado === 'cerrada_inscripcion'
+
   const estadoSesionVisual = getEstadoSesionVisual(sesion.estado)
   const accionesEstadoSesion = getAccionesEstadoSesion(sesion.estado)
 
@@ -236,32 +274,44 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
       <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Fecha</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Fecha
+            </p>
             <p className="mt-1 text-sm text-gray-900">{sesion.fecha}</p>
           </div>
 
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Entreno</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Entreno
+            </p>
             <p className="mt-1 text-sm text-gray-900">{sesion.tipo_entreno}</p>
           </div>
 
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Hora</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Hora
+            </p>
             <p className="mt-1 text-sm text-gray-900">{sesion.hora_inicio}</p>
           </div>
 
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Sede</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Sede
+            </p>
             <p className="mt-1 text-sm text-gray-900">{sesion.sede ?? '—'}</p>
           </div>
 
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Estado</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Estado
+            </p>
             <p className="mt-1 text-sm text-gray-900">{sesion.estado}</p>
           </div>
 
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Notas</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Notas
+            </p>
             <p className="mt-1 text-sm text-gray-900">{sesion.notas_staff ?? '—'}</p>
           </div>
         </div>
@@ -270,7 +320,9 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
       <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Estado de la sesión</h2>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Estado de la sesión
+            </h2>
             <p className="text-sm text-gray-500">
               Control manual del flujo operativo. La publicación se sigue
               gestionando desde planificación de barcos.
@@ -317,7 +369,9 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Inscripciones</h2>
-            <p className="text-sm text-gray-500">Personas apuntadas a esta sesión</p>
+            <p className="text-sm text-gray-500">
+              Personas apuntadas a esta sesión
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -332,14 +386,15 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
 
         {!puedeGestionarInscripciones && (
           <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-            Las inscripciones no se pueden modificar en el estado actual de la sesión.
+            Las inscripciones no se pueden modificar en el estado actual de la
+            sesión.
           </div>
         )}
 
-        {inscripcionesError || profilesError ? (
+        {inscripcionesError || profilesErrorMessage ? (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             Error cargando inscripciones o perfiles:{' '}
-            {inscripcionesError?.message || profilesError?.message}
+            {inscripcionesError?.message || profilesErrorMessage}
           </div>
         ) : inscripcionesActivas.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 px-6 py-8 text-center text-sm text-gray-500">
@@ -350,12 +405,24 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
             <table className="min-w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Nombre</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Peso</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Estado</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Lado</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Prep/Rec</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">Hueco</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Nombre
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Peso
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Estado
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Lado
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Prep/Rec
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                    Hueco
+                  </th>
                   {puedeGestionarInscripciones && (
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
                       Acciones
@@ -386,6 +453,7 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                     <td className="px-4 py-3 text-sm text-gray-700">
                       {inscripcion.tipo_hueco ?? '—'}
                     </td>
+
                     {puedeGestionarInscripciones && (
                       <td className="px-4 py-3 text-sm text-gray-700">
                         <div className="flex flex-wrap gap-2">
@@ -393,7 +461,10 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                             <form
                               action={async () => {
                                 'use server'
-                                await marcarInscripcionComoInscrito(sesion.id, inscripcion.id)
+                                await marcarInscripcionComoInscrito(
+                                  sesion.id,
+                                  inscripcion.id
+                                )
                               }}
                             >
                               <button
@@ -409,7 +480,10 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                             <form
                               action={async () => {
                                 'use server'
-                                await marcarInscripcionComoListaEspera(sesion.id, inscripcion.id)
+                                await marcarInscripcionComoListaEspera(
+                                  sesion.id,
+                                  inscripcion.id
+                                )
                               }}
                             >
                               <button
@@ -425,7 +499,10 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
                             <form
                               action={async () => {
                                 'use server'
-                                await cancelarInscripcionDesdeStaff(sesion.id, inscripcion.id)
+                                await cancelarInscripcionDesdeStaff(
+                                  sesion.id,
+                                  inscripcion.id
+                                )
                               }}
                             >
                               <button
@@ -448,14 +525,19 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
 
         <section className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-6">
           <div className="mb-4">
-            <h3 className="text-sm font-semibold text-gray-900">Histórico de canceladas</h3>
+            <h3 className="text-sm font-semibold text-gray-900">
+              Histórico de canceladas
+            </h3>
             <p className="text-sm text-gray-500">
-              Inscripciones canceladas que ya no participan en la operativa actual.
+              Inscripciones canceladas que ya no participan en la operativa
+              actual.
             </p>
           </div>
 
           {inscripcionesCanceladas.length === 0 ? (
-            <p className="text-sm text-gray-500">No hay inscripciones canceladas.</p>
+            <p className="text-sm text-gray-500">
+              No hay inscripciones canceladas.
+            </p>
           ) : (
             <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
               <table className="min-w-full">
