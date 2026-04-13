@@ -252,6 +252,15 @@ export default async function StaffSesionesPage({ searchParams }: PageProps) {
         ]}
       />
 
+      <div className="mb-6 flex justify-end">
+        <Link
+          href="/staff/sesiones/nueva"
+          className="inline-flex rounded-lg bg-black px-4 py-3 text-sm font-medium text-white hover:bg-gray-800"
+        >
+          Nueva sesion
+        </Link>
+      </div>
+
       <section className="mb-6 grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-blue-700">

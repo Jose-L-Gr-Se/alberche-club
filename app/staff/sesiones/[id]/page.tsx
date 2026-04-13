@@ -238,6 +238,10 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
   const puedeGestionarInscripciones =
     sesion.estado === 'abierta_inscripcion' ||
     sesion.estado === 'cerrada_inscripcion'
+  const puedeEditarSesion =
+    sesion.estado === 'abierta_inscripcion' ||
+    sesion.estado === 'cerrada_inscripcion' ||
+    sesion.estado === 'en_planificacion'
 
   const estadoSesionVisual = getEstadoSesionVisual(sesion.estado)
   const accionesEstadoSesion = getAccionesEstadoSesion(sesion.estado)
@@ -355,6 +359,15 @@ export default async function StaffSesionDetallePage({ params }: PageProps) {
               </button>
             </form>
           ))}
+
+          {puedeEditarSesion && (
+            <Link
+              href={`/staff/sesiones/${sesion.id}/editar`}
+              className="inline-flex rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Editar sesion
+            </Link>
+          )}
 
           <Link
             href={`/staff/sesiones/${sesion.id}/barcos`}
