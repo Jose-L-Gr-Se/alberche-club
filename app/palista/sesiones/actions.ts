@@ -55,7 +55,7 @@ export async function inscribirmeEnSesion(sesionId: string) {
     estado: nuevoEstado,
     lado_solicitado: 'i',
     prep_rec: 'prep',
-    tipo_hueco: 'veterano',
+    tipo_hueco: 'indistinto',
     observaciones: 'Inscripción creada desde pantalla palista',
   })
 
@@ -151,5 +151,7 @@ export async function cancelarInscripcionEnSesion(sesionId: string) {
   }
 
   revalidatePath('/palista/sesiones')
+  revalidatePath(`/staff/sesiones/${sesionId}`)
+  revalidatePath(`/staff/sesiones/${sesionId}/barcos`)
   return { ok: true }
 }

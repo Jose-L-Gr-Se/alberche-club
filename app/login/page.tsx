@@ -3,13 +3,29 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 
+function translateAuthError(message: string): string {
+  if (message.toLowerCase().includes('invalid login credentials')) {
+    return 'Email o contraseña incorrectos.'
+  }
+  if (message.toLowerCase().includes('email not confirmed')) {
+    return 'El email aún no está confirmado.'
+  }
+  if (message.toLowerCase().includes('too many requests')) {
+    return 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.'
+  }
+  if (message.toLowerCase().includes('user not found')) {
+    return 'No existe ninguna cuenta con ese email.'
+  }
+  return 'No se pudo iniciar sesión. Inténtalo de nuevo.'
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     setMessage(null)
@@ -20,7 +36,7 @@ export default function LoginPage() {
     })
 
     if (error) {
-      setMessage(error.message)
+      setMessage(translateAuthError(error.message))
       setLoading(false)
       return
     }
@@ -75,7 +91,7 @@ export default function LoginPage() {
         </form>
 
         {message ? (
-          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {message}
           </div>
         ) : null}

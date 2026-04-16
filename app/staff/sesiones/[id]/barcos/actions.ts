@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth/require-role'
-import { getBoatLayoutConfig } from '@/lib/boats/layout'
+import { getBoatLayoutConfig, isValidBoatType } from '@/lib/boats/layout'
 import { evaluateAssignmentRules } from '@/lib/crew/assignment-rules'
 
 export type TipoPosicionBarco = 'banco' | 'tambor' | 'timonel'
@@ -88,10 +88,18 @@ async function reordenarBarcosDeSesion(sesionId: string) {
   }
 }
 
-export async function crearBarco(sesionId: string) {
+export async function crearBarco(sesionId: string, tipoBarco = 'DB12') {
   await requireRole(['staff'])
   const stateCheck = await validarSesionParaGestionBarcos(sesionId)
   if (!stateCheck.ok) return stateCheck
+
+  if (!isValidBoatType(tipoBarco)) {
+    return {
+      ok: false as const,
+      reason: 'invalid_boat_type' as const,
+      message: `Tipo de barco no reconocido: ${tipoBarco}`,
+    }
+  }
 
   const supabase = await createServerSupabaseClient()
 
@@ -111,7 +119,7 @@ export async function crearBarco(sesionId: string) {
   const { error } = await supabase.from('barcos').insert({
     sesion_id: sesionId,
     nombre_visible: `Barco ${orden}`,
-    tipo_barco: 'BD12',
+    tipo_barco: tipoBarco,
     turno: 1,
     estado: 'borrador',
     orden_visual: orden,
@@ -401,7 +409,7 @@ export async function actualizarPosicionAsignacion(
       return {
         ok: false as const,
         reason: 'invalid_bank' as const,
-        message: `El banco máximo permitido para ${barcoActual.tipo_barco} es ${layout.maxBancos}`,
+        message: `El banco máximo permitido para ${layout.displayName} es ${layout.maxBancos}`,
       }
     }
 
@@ -438,6 +446,7 @@ export async function actualizarPosicionAsignacion(
       },
       target: {
         lado,
+        tipo_posicion: tipoPosicion,
       },
     })
 
@@ -471,6 +480,34 @@ export async function actualizarPosicionAsignacion(
         ok: false as const,
         reason: 'special_position_taken' as const,
         message: `El puesto de ${getNombrePosicion(tipoPosicion)} ya está ocupado en este barco.`,
+      }
+    }
+
+    // Evaluar reglas para tambor/timonel: informativo, nunca bloquea
+    const { data: sesionParaReglas } = await supabase
+      .from('sesiones')
+      .select('id, tipo_entreno')
+      .eq('id', sesionId)
+      .single()
+
+    if (sesionParaReglas) {
+      const rawRules = evaluateAssignmentRules({
+        sesion: { tipo_entreno: sesionParaReglas.tipo_entreno ?? null },
+        inscripcion: {
+          lado_solicitado: inscripcion.lado_solicitado ?? null,
+          prep_rec: inscripcion.prep_rec ?? null,
+          tipo_hueco: inscripcion.tipo_hueco ?? null,
+        },
+        target: { lado: null, tipo_posicion: tipoPosicion },
+      })
+      // Degradar errores a warnings: tambor/timonel nunca bloquea por reglas
+      rules = {
+        ok: true,
+        errors: [],
+        warnings: [
+          ...rawRules.errors.map((e) => ({ ...e, severity: 'warning' as const })),
+          ...rawRules.warnings,
+        ],
       }
     }
 

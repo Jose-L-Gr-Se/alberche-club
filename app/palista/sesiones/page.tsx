@@ -39,6 +39,41 @@ type Inscripcion = {
   estado: string
 }
 
+function formatEstadoSesionLabel(estado: string): string {
+  switch (estado) {
+    case 'abierta_inscripcion': return 'Inscripción abierta'
+    case 'cerrada_inscripcion': return 'Inscripción cerrada'
+    case 'en_planificacion': return 'Planificación en curso'
+    case 'publicada': return 'Barcos publicados'
+    default: return estado
+  }
+}
+
+function estadoSesionBadgeClass(estado: string): string {
+  switch (estado) {
+    case 'abierta_inscripcion': return 'bg-emerald-100 text-emerald-700'
+    case 'cerrada_inscripcion': return 'bg-gray-100 text-gray-600'
+    case 'en_planificacion': return 'bg-blue-100 text-blue-700'
+    case 'publicada': return 'bg-green-100 text-green-700'
+    default: return 'bg-gray-100 text-gray-600'
+  }
+}
+
+function formatCierreInscripcion(cierre: string | null): string {
+  if (!cierre) return '—'
+  try {
+    const date = new Date(cierre)
+    const dia = date.getDate()
+    const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+    const mes = meses[date.getMonth()]
+    const hora = date.getHours().toString().padStart(2, '0')
+    const min = date.getMinutes().toString().padStart(2, '0')
+    return `${dia} ${mes} · ${hora}:${min}`
+  } catch {
+    return cierre
+  }
+}
+
 export default async function PalistaSesionesPage() {
   let currentProfile: Awaited<ReturnType<typeof requireRole>>
 
@@ -117,7 +152,7 @@ export default async function PalistaSesionesPage() {
     <main className="min-h-screen bg-gray-50 px-6 py-10">
       <AppHeader
         title="Mis sesiones"
-        subtitle="Vista inicial del palista para consultar e inscribirse a entrenamientos"
+        subtitle="Consulta los entrenamientos disponibles e inscríbete a los que te interesen"
         items={navItems}
       />
 
@@ -131,6 +166,20 @@ export default async function PalistaSesionesPage() {
             const miInscripcion = inscripcionesMap.get(sesion.id)
             const yaInscrito = !!miInscripcion
             const sesionAbierta = sesionPermiteCambios(sesion)
+
+            const inscripcionBadge = miInscripcion ? (
+              <div
+                className={`rounded-lg px-4 py-3 text-sm font-medium ${
+                  miInscripcion.estado === 'lista_espera'
+                    ? 'border border-yellow-200 bg-yellow-50 text-yellow-700'
+                    : 'border border-green-200 bg-green-50 text-green-700'
+                }`}
+              >
+                {miInscripcion.estado === 'lista_espera'
+                  ? 'Estás en lista de espera'
+                  : 'Estás inscrito'}
+              </div>
+            ) : null
 
             return (
               <section
@@ -177,11 +226,15 @@ export default async function PalistaSesionesPage() {
 
                     <div>
                       <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                        Estado sesión
+                        Estado
                       </p>
-                      <p className="mt-1 text-sm text-gray-900">
-                        {sesion.estado}
-                      </p>
+                      <div className="mt-1">
+                        <span
+                          className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${estadoSesionBadgeClass(sesion.estado)}`}
+                        >
+                          {formatEstadoSesionLabel(sesion.estado)}
+                        </span>
+                      </div>
                     </div>
 
                     <div>
@@ -189,7 +242,7 @@ export default async function PalistaSesionesPage() {
                         Cierre inscripción
                       </p>
                       <p className="mt-1 text-sm text-gray-900">
-                        {sesion.cierre_inscripcion_at ?? '—'}
+                        {formatCierreInscripcion(sesion.cierre_inscripcion_at)}
                       </p>
                     </div>
 
@@ -204,24 +257,40 @@ export default async function PalistaSesionesPage() {
                   </div>
 
                   <div className="md:min-w-[240px]">
-                    {!sesionAbierta ? (
-                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-600">
-                        Inscripción cerrada
+                    {sesion.estado === 'publicada' ? (
+                      yaInscrito ? (
+                        <div className="flex flex-col gap-2">
+                          {inscripcionBadge}
+                          <a
+                            href="/palista/barcos"
+                            className="flex w-full items-center justify-between rounded-lg bg-green-700 px-4 py-3 text-sm font-medium text-white hover:bg-green-800"
+                          >
+                            <span>Ver mi sitio en el barco</span>
+                            <span aria-hidden="true">→</span>
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+                          Barcos publicados
+                        </div>
+                      )
+                    ) : sesion.estado === 'en_planificacion' ? (
+                      <div className="flex flex-col gap-2">
+                        {inscripcionBadge}
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                          Tu sitio se está preparando
+                        </div>
+                      </div>
+                    ) : !sesionAbierta ? (
+                      <div className="flex flex-col gap-2">
+                        {inscripcionBadge}
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-600">
+                          Inscripción cerrada
+                        </div>
                       </div>
                     ) : yaInscrito ? (
                       <div className="flex flex-col gap-2">
-                        <div
-                          className={`rounded-lg px-4 py-3 text-sm font-medium ${
-                            miInscripcion?.estado === 'lista_espera'
-                              ? 'border border-yellow-200 bg-yellow-50 text-yellow-700'
-                              : 'border border-green-200 bg-green-50 text-green-700'
-                          }`}
-                        >
-                          {miInscripcion?.estado === 'lista_espera'
-                            ? 'Estás en lista de espera'
-                            : 'Ya estás inscrito'}
-                        </div>
-
+                        {inscripcionBadge}
                         <form
                           action={async () => {
                             'use server'

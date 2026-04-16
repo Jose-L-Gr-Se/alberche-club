@@ -217,6 +217,34 @@ export async function cancelarInscripcionDesdeStaff(
       .from('asignaciones_barco')
       .delete()
       .eq('inscripcion_id', inscripcionId)
+
+    // Promocionar al siguiente en lista de espera
+    const { data: siguienteEnEspera, error: esperaError } = await supabase
+      .from('inscripciones')
+      .select('id')
+      .eq('sesion_id', sesionId)
+      .eq('estado', 'lista_espera')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (esperaError) {
+      throw new Error(`No se pudo revisar la lista de espera: ${esperaError.message}`)
+    }
+
+    if (siguienteEnEspera) {
+      const { error: promoteError } = await supabase
+        .from('inscripciones')
+        .update({
+          estado: 'inscrito',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', siguienteEnEspera.id)
+
+      if (promoteError) {
+        throw new Error(`No se pudo promocionar desde lista de espera: ${promoteError.message}`)
+      }
+    }
   }
 
   revalidatePath(`/staff/sesiones/${sesionId}`)

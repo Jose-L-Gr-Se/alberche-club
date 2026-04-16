@@ -18,6 +18,24 @@ type Sesion = {
   sede: string | null
 }
 
+function formatMiSitio(asignacion: {
+  tipo_posicion: string
+  banco: number | null
+  lado: string | null
+}): string {
+  if (asignacion.tipo_posicion === 'tambor') return 'Tambor'
+  if (asignacion.tipo_posicion === 'timonel') return 'Timonel'
+  const ladoLabel =
+    asignacion.lado === 'izquierda'
+      ? 'Izquierda'
+      : asignacion.lado === 'derecha'
+        ? 'Derecha'
+        : null
+  if (asignacion.banco && ladoLabel) return `Banco ${asignacion.banco} · ${ladoLabel}`
+  if (asignacion.banco) return `Banco ${asignacion.banco}`
+  return 'Posición pendiente'
+}
+
 export default async function PalistaBarcosPage() {
   let currentProfile: Awaited<ReturnType<typeof requireRole>>
 
@@ -308,6 +326,7 @@ export default async function PalistaBarcosPage() {
               <div className="grid gap-6 lg:grid-cols-2">
                 {barcosSesion.map((barco: any) => {
                   const asignadosDelBarco = [...(asignadosPorBarco.get(barco.id) ?? [])]
+                  const miAsignacion = asignadosDelBarco.find((item: any) => item.esYo) ?? null
                   const tamborAsignado =
                     asignadosDelBarco.find(
                       (item: any) => item.tipo_posicion === 'tambor'
@@ -382,17 +401,25 @@ export default async function PalistaBarcosPage() {
                             {formatNullableText(barco.nombre_visible, 'Barco sin nombre')}
                           </p>
                           <p className="mt-1 text-sm text-gray-600">
-                            {formatNullableText(barco.tipo_barco, 'Tipo no disponible')} · Turno {formatNullableText(
-                              barco.turno != null ? String(barco.turno) : null,
-                              'Sin turno'
-                            )}
+                            {layout.displayName} · {layout.maxBancos} bancos · Turno {barco.turno ?? '—'}
                           </p>
                         </div>
 
-                        <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600">
-                          {formatNullableText(barco.estado, 'Estado no disponible')}
+                        <span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                          Publicado
                         </span>
                       </div>
+
+                      {miAsignacion ? (
+                        <div className="mb-4 rounded-lg border-2 border-green-300 bg-green-50 px-4 py-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-green-600">
+                            Tu sitio
+                          </p>
+                          <p className="mt-0.5 text-base font-bold text-green-900">
+                            {formatMiSitio(miAsignacion)}
+                          </p>
+                        </div>
+                      ) : null}
 
                       <div className="mb-4 grid gap-3 md:grid-cols-2">
                         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
@@ -407,9 +434,13 @@ export default async function PalistaBarcosPage() {
                                   : 'border-amber-200 bg-white text-gray-800'
                               }`}
                             >
-                              <div className="font-medium">
-                                {formatProfileName(tamborAsignado.profile)}
-                                {tamborAsignado.esYo ? ' · Tú' : ''}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-medium">{formatProfileName(tamborAsignado.profile)}</span>
+                                {tamborAsignado.esYo && (
+                                  <span className="rounded-full bg-green-600 px-2 py-0.5 text-xs font-bold text-white">
+                                    Tú
+                                  </span>
+                                )}
                               </div>
                               <div className="mt-1 text-xs text-gray-500">
                                 {formatWeightDisplay(tamborAsignado.profile?.peso_kg)}
@@ -434,9 +465,13 @@ export default async function PalistaBarcosPage() {
                                   : 'border-sky-200 bg-white text-gray-800'
                               }`}
                             >
-                              <div className="font-medium">
-                                {formatProfileName(timonelAsignado.profile)}
-                                {timonelAsignado.esYo ? ' · Tú' : ''}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-medium">{formatProfileName(timonelAsignado.profile)}</span>
+                                {timonelAsignado.esYo && (
+                                  <span className="rounded-full bg-green-600 px-2 py-0.5 text-xs font-bold text-white">
+                                    Tú
+                                  </span>
+                                )}
                               </div>
                               <div className="mt-1 text-xs text-gray-500">
                                 {formatWeightDisplay(timonelAsignado.profile?.peso_kg)}
@@ -481,9 +516,13 @@ export default async function PalistaBarcosPage() {
                                       : 'border-gray-200 bg-gray-50 text-gray-800'
                                   }`}
                                 >
-                                  <div className="font-medium">
-                                    {formatProfileName(fila.izquierda.profile)}
-                                    {fila.izquierda.esYo ? ' · Tú' : ''}
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="font-medium">{formatProfileName(fila.izquierda.profile)}</span>
+                                    {fila.izquierda.esYo && (
+                                      <span className="rounded-full bg-green-600 px-2 py-0.5 text-xs font-bold text-white">
+                                        Tú
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="mt-1 text-xs text-gray-500">
                                     {formatWeightDisplay(fila.izquierda.profile?.peso_kg)}
@@ -505,9 +544,13 @@ export default async function PalistaBarcosPage() {
                                       : 'border-gray-200 bg-gray-50 text-gray-800'
                                   }`}
                                 >
-                                  <div className="font-medium">
-                                    {formatProfileName(fila.derecha.profile)}
-                                    {fila.derecha.esYo ? ' · Tú' : ''}
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="font-medium">{formatProfileName(fila.derecha.profile)}</span>
+                                    {fila.derecha.esYo && (
+                                      <span className="rounded-full bg-green-600 px-2 py-0.5 text-xs font-bold text-white">
+                                        Tú
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="mt-1 text-xs text-gray-500">
                                     {formatWeightDisplay(fila.derecha.profile?.peso_kg)}

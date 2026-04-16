@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/auth/require-role'
 import { AccessDenied } from '@/components/auth/AccessDenied'
-import { getBoatLayoutConfig } from '@/lib/boats/layout'
+import { getBoatLayoutConfig, getZoneForBank } from '@/lib/boats/layout'
+import { evaluateBalanceWarnings } from '@/lib/crew/balance-rules'
 import {
   asignarInscripcionABarco,
   crearBarco,
@@ -31,6 +32,15 @@ function getTipoPosicionLabel(tipoPosicion: TipoPosicionBarco) {
   if (tipoPosicion === 'tambor') return 'Tambor'
   if (tipoPosicion === 'timonel') return 'Timonel'
   return 'Banco'
+}
+
+function getZoneBadgeClass(zonaId: string): string {
+  switch (zonaId) {
+    case 'marcas':  return 'bg-blue-100 text-blue-700'
+    case 'motor':   return 'bg-orange-100 text-orange-700'
+    case 'rockets': return 'bg-rose-100 text-rose-700'
+    default:        return 'bg-gray-100 text-gray-500'
+  }
 }
 
 export default async function StaffSesionBarcosPage({ params }: PageProps) {
@@ -96,6 +106,7 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
       },
       target: {
         lado: null,
+        tipo_posicion: 'banco',
       },
     })
 
@@ -310,7 +321,7 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
             <form
               action={async () => {
                 'use server'
-                await crearBarco(id)
+                await crearBarco(id, 'DB12')
               }}
             >
               <button
@@ -318,7 +329,22 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                 disabled={!puedeGestionarBarcos}
                 className="rounded-lg bg-black px-4 py-3 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Crear barco
+                + DB12
+              </button>
+            </form>
+
+            <form
+              action={async () => {
+                'use server'
+                await crearBarco(id, 'DB22')
+              }}
+            >
+              <button
+                type="submit"
+                disabled={!puedeGestionarBarcos}
+                className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                + DB22
               </button>
             </form>
 
@@ -637,12 +663,23 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                         item.asignacion?.lado === 'derecha'
                     ) ?? null
 
+                  const zona = getZoneForBank(layout, banco)
+
                   return {
                     banco,
                     izquierda,
                     derecha,
+                    zona,
                   }
                 })
+
+                const balanceWarnings = evaluateBalanceWarnings(
+                  filas.map((f) => ({
+                    banco: f.banco,
+                    izquierda: f.izquierda ? { peso_kg: (f.izquierda as any).profile?.peso_kg ?? null } : null,
+                    derecha: f.derecha ? { peso_kg: (f.derecha as any).profile?.peso_kg ?? null } : null,
+                  }))
+                )
 
                 return (
                   <div
@@ -655,10 +692,7 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                           {formatNullableText(barco.nombre_visible, 'Barco sin nombre')}
                         </p>
                         <p className="mt-1 text-sm text-gray-600">
-                          {formatNullableText(barco.tipo_barco, 'Tipo no disponible')} · Turno {formatNullableText(
-                            barco.turno != null ? String(barco.turno) : null,
-                            'Sin turno'
-                          )}
+                          {layout.displayName} · {layout.maxBancos} bancos · Turno {barco.turno ?? '—'}
                         </p>
                       </div>
 
@@ -755,8 +789,13 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                             key={fila.banco}
                             className="grid grid-cols-[80px_1fr_1fr] border-b border-gray-100 last:border-b-0"
                           >
-                            <div className="px-3 py-3 text-sm font-medium text-gray-700">
-                              {fila.banco}
+                            <div className="px-3 py-3">
+                              <span className="text-sm font-medium text-gray-700">{fila.banco}</span>
+                              {fila.zona && (
+                                <span className={`mt-1 block rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${getZoneBadgeClass(fila.zona.id)}`}>
+                                  {fila.zona.label}
+                                </span>
+                              )}
                             </div>
 
                             <div className="border-l border-gray-100 px-3 py-3">
@@ -797,6 +836,21 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                       </div>
                     </div>
 
+                    {balanceWarnings.length > 0 && (
+                      <div className="mt-4 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2">
+                        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-yellow-700">
+                          Avisos de equilibrio
+                        </p>
+                        <ul className="space-y-1">
+                          {balanceWarnings.map((w, i) => (
+                            <li key={i} className="text-xs text-yellow-700">
+                              {w.message}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     <div className="mt-4">
                       <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                         Asignados
@@ -807,6 +861,12 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                       ) : (
                         <div className="mt-2 grid gap-2">
                           {asignados.map((item: any) => {
+                            const tipoPosicionItem = (item.asignacion?.tipo_posicion ?? 'banco') as 'banco' | 'tambor' | 'timonel'
+                            const zonaId =
+                              tipoPosicionItem === 'banco' && item.asignacion?.banco != null
+                                ? (getZoneForBank(layout, item.asignacion.banco)?.id ?? null)
+                                : null
+
                             const assignmentRules = evaluateAssignmentRules({
                               sesion: {
                                 tipo_entreno: sesion.tipo_entreno ?? null,
@@ -818,7 +878,12 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                               },
                               target: {
                                 lado: item.asignacion?.lado ?? null,
+                                tipo_posicion: tipoPosicionItem,
                               },
+                              weight: tipoPosicionItem === 'banco' ? {
+                                peso_kg: item.profile?.peso_kg ?? null,
+                                zonaId,
+                              } : undefined,
                             })
 
                             return (
@@ -853,7 +918,9 @@ export default async function StaffSesionBarcosPage({ params }: PageProps) {
                                   </div>
                                   {assignmentRules.warnings.length > 0 && (
                                     <div className="mt-2 rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-700">
-                                      {assignmentRules.warnings[0].message}
+                                      {assignmentRules.warnings.map((w, i) => (
+                                        <p key={i}>{w.message}</p>
+                                      ))}
                                     </div>
                                   )}
                                 </div>

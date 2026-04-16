@@ -16,8 +16,6 @@ export async function getCurrentProfile(): Promise<CurrentProfile | null> {
     error: userError,
   } = await supabase.auth.getUser()
 
-  console.log('AUTH USER', { userId: user?.id, email: user?.email, userError })
-
   if (userError || !user) {
     return null
   }
@@ -27,8 +25,6 @@ export async function getCurrentProfile(): Promise<CurrentProfile | null> {
     .select('id, email, role, nombre')
     .eq('id', user.id)
     .maybeSingle()
-
-  console.log('PROFILE QUERY', { profile, profileError })
 
   if (profileError || !profile) {
     return null
